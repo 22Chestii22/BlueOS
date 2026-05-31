@@ -11,7 +11,6 @@ PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 IMAGE="$PROJECT_ROOT/disk.img"
 SIZE_MB=128
 MOUNT_DIR="/tmp/blueos_mount"
-PART_OFFSET=1048576  # 2048 sectors * 512 bytes
 
 echo "=== BlueOS Disk Image Builder ==="
 
