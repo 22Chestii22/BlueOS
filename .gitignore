@@ -1,0 +1,6 @@
+*.o
+*.elf
+*.bin
+blueos.iso
+disk.img
+iso/
