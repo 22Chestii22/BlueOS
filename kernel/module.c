@@ -6,6 +6,8 @@
 #include "idt.h"
 #include "module.h"
 #include "ata.h"
+#include "vfs.h"
+#include "elf_loader.h"
 
 static char (*registered_keyb_getchar)(void) = NULL;
 static uint64_t (*registered_timer_get_ticks)(void) = NULL;
@@ -65,4 +67,63 @@ uint64_t timer_get_ticks_wrapper(void)
     if (registered_timer_get_ticks)
         return (*registered_timer_get_ticks)();
     return 0;
+}
+
+void load_disk_modules(const char* dir_path)
+{
+    char entries[4096];
+    int count = vfs_readdir(dir_path, entries, sizeof(entries));
+    if (count <= 0)
+    {
+        printf("[LOADER] No modules found in '%s'\n", dir_path);
+        return;
+    }
+
+    int loaded = 0;
+    int pos = 0;
+    for (int i = 0; i < count; i++)
+    {
+        char type = entries[pos++];
+        pos++;
+        char name[256];
+        int ni = 0;
+        while (entries[pos] && ni < 255)
+            name[ni++] = entries[pos++];
+        name[ni] = 0;
+        pos++;
+
+        while (entries[pos]) pos++;
+        pos++;
+
+        if (type == 'D') continue;
+
+        int len = strlen(name);
+        if (len < 4 || strcmp(name + len - 4, ".SYS") != 0) continue;
+
+        char full_path[256];
+        strcpy(full_path, dir_path);
+        int plen = strlen(full_path);
+        if (full_path[plen - 1] != '/' && full_path[plen - 1] != '\\')
+            strcat(full_path, "\\");
+        strcat(full_path, name);
+
+        loaded_module_t mod;
+        if (elf_load_module(full_path, &mod) == 0)
+        {
+            printf("[LOADER] '%s' loaded (entry=0x%x, size=%d)\n",
+                   mod.name, (uint64_t)mod.entry_point, mod.size);
+            if (elf_call_init(&mod, &kernel_api) == 0)
+                printf("[LOADER] '%s' initialized\n", mod.name);
+            loaded++;
+        }
+        else
+        {
+            printf("[LOADER] Failed to load '%s'\n", full_path);
+        }
+    }
+
+    if (loaded == 0)
+        printf("[LOADER] No .sys modules loaded from '%s'\n", dir_path);
+    else
+        printf("[LOADER] Loaded %d module(s) from '%s'\n", loaded, dir_path);
 }

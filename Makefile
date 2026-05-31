@@ -35,6 +35,7 @@ KERNEL_SRCS = \
     kernel/gdt.c \
     kernel/cmd.c \
     kernel/module.c \
+    kernel/elf_loader.c \
     modules/keyb/keyb.c \
     modules/timer/timer.c \
     modules/ata/ata.c \
@@ -72,7 +73,11 @@ programs/edit/edit.exe: programs/edit/edit.asm scripts/make_pe.py
 	nasm -f bin -o programs/edit/edit.bin programs/edit/edit.asm
 	python3 scripts/make_pe.py programs/edit/edit.bin programs/edit/edit.exe
 
-disk.img: programs/test.exe scripts/build_image.sh
+modules/demo/demo.sys: modules/demo/demo.c modules/demo/demo.ld
+	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/demo/demo.c -o modules/demo/demo.o
+	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/demo/demo.ld -o $@ modules/demo/demo.o
+
+disk.img: programs/test.exe modules/demo/demo.sys scripts/build_image.sh
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
@@ -84,5 +89,6 @@ debug: blueos.iso disk.img
 clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img
 	rm -f programs/test.bin programs/test.exe
-	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o
+	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
+	rm -f modules/demo/demo.o modules/demo/demo.sys
 	rm -rf iso

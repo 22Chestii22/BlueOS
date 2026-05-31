@@ -30,6 +30,7 @@ if command -v mformat &> /dev/null; then
     # Create DOS directory structure (8.3 uppercase)
     echo "Creating DOS directory structure..."
     mmd -i "$IMAGE" ::/SYSTEM
+    mmd -i "$IMAGE" ::/SYSTEM/DRIVERS
     mmd -i "$IMAGE" ::/TEMP
     mmd -i "$IMAGE" ::/USERS
     mmd -i "$IMAGE" ::/USERS/DEFAULT
@@ -39,6 +40,13 @@ if command -v mformat &> /dev/null; then
     if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/test.exe" ::/SYSTEM/TEST.EXE
         echo "  TEST.EXE"
+    fi
+
+    # Copy loadable modules
+    echo "Copying modules..."
+    if [ -f "$PROJECT_ROOT/modules/demo/demo.sys" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/modules/demo/demo.sys" ::/SYSTEM/DRIVERS/DEMO.SYS
+        echo "  DEMO.SYS"
     fi
 
     # Create AUTOEXEC.BAT in /SYSTEM/
@@ -71,6 +79,7 @@ else
 
     echo "Creating DOS directory structure..."
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM
+    sudo mkdir -p "$MOUNT_DIR"/SYSTEM/DRIVERS
     sudo mkdir -p "$MOUNT_DIR"/TEMP
     sudo mkdir -p "$MOUNT_DIR"/USERS
     sudo mkdir -p "$MOUNT_DIR"/USERS/DEFAULT
@@ -79,6 +88,12 @@ else
     if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
         sudo cp "$PROJECT_ROOT/programs/test.exe" "$MOUNT_DIR"/SYSTEM/TEST.EXE
         echo "  TEST.EXE"
+    fi
+
+    echo "Copying modules..."
+    if [ -f "$PROJECT_ROOT/modules/demo/demo.sys" ]; then
+        sudo cp "$PROJECT_ROOT/modules/demo/demo.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/DEMO.SYS
+        echo "  DEMO.SYS"
     fi
 
     echo "Creating AUTOEXEC.BAT in /SYSTEM/..."
@@ -101,7 +116,8 @@ fi
 echo ""
 echo "=== Disk image created: $IMAGE ($SIZE_MB MB) ==="
 echo "Directory structure:"
-echo "  /SYSTEM/       - System files, configs, and executables"
-echo "  /TEMP/         - Temporary files"
-echo "  /USERS/        - User profiles"
-echo "  /USERS/DEFAULT - Default user profile"
+echo "  /SYSTEM/            - System files, configs, and executables"
+echo "  /SYSTEM/DRIVERS/    - Loadable .sys drivers"
+echo "  /TEMP/              - Temporary files"
+echo "  /USERS/             - User profiles"
+echo "  /USERS/DEFAULT      - Default user profile"

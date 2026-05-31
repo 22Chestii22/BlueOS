@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "kernel_api.h"
+#include "elf_loader.h"
 
 extern kernel_api_t kernel_api;
 
@@ -13,5 +14,7 @@ void keyb_module_init(kernel_api_t* api);
 void timer_module_init(kernel_api_t* api);
 void ata_module_init(kernel_api_t* api);
 void fat_module_init(kernel_api_t* api);
+
+void load_disk_modules(const char* dir_path);
 
 #endif

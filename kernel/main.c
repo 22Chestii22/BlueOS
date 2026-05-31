@@ -96,6 +96,7 @@ void kernel_main(void* mbd, uint32_t magic)
     timer_module_init(&kernel_api);
     ata_module_init(&kernel_api);
     fat_module_init(&kernel_api);
+    load_disk_modules("\\SYSTEM\\DRIVERS");
     process_init();
     syscall_init();
 
