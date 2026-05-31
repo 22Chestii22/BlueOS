@@ -30,36 +30,30 @@ if command -v mformat &> /dev/null; then
     # Create DOS directory structure (8.3 uppercase)
     echo "Creating DOS directory structure..."
     mmd -i "$IMAGE" ::/SYSTEM
-    mmd -i "$IMAGE" ::/PROGRAMS
     mmd -i "$IMAGE" ::/TEMP
     mmd -i "$IMAGE" ::/USERS
     mmd -i "$IMAGE" ::/USERS/DEFAULT
 
     # Copy executables
     echo "Copying executables..."
-    if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/edit/edit.exe" ::/PROGRAMS/EDIT.EXE
-        echo "  EDIT.EXE"
-    fi
     if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/test.exe" ::/PROGRAMS/TEST.EXE
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/test.exe" ::/SYSTEM/TEST.EXE
         echo "  TEST.EXE"
     fi
 
-    # Create AUTOEXEC.BAT
+    # Create AUTOEXEC.BAT in /SYSTEM/
     echo "Creating AUTOEXEC.BAT..."
     {
-        echo "@ECHO OFF"
-        echo "PATH C:\\SYSTEM;C:\\PROGRAMS"
-        echo "PROMPT \$P\$G"
-    } | mcopy -i "$IMAGE" - ::/AUTOEXEC.BAT
+        echo "SET PATH=C:\\SYSTEM"
+        echo "TEST"
+    } | mcopy -i "$IMAGE" - ::/SYSTEM/AUTOEXEC.BAT
 
-    # Create CONFIG.SYS
+    # Create CONFIG.SYS in /SYSTEM/
     echo "Creating CONFIG.SYS..."
     {
         echo "FILES=30"
         echo "BUFFERS=20"
-    } | mcopy -i "$IMAGE" - ::/CONFIG.SYS
+    } | mcopy -i "$IMAGE" - ::/SYSTEM/CONFIG.SYS
 
 # Fallback: use loop+mount (requires sudo)
 else
@@ -77,29 +71,23 @@ else
 
     echo "Creating DOS directory structure..."
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM
-    sudo mkdir -p "$MOUNT_DIR"/PROGRAMS
     sudo mkdir -p "$MOUNT_DIR"/TEMP
     sudo mkdir -p "$MOUNT_DIR"/USERS
     sudo mkdir -p "$MOUNT_DIR"/USERS/DEFAULT
 
     echo "Copying executables..."
-    if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/edit/edit.exe" "$MOUNT_DIR"/PROGRAMS/EDIT.EXE
-        echo "  EDIT.EXE"
-    fi
     if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/test.exe" "$MOUNT_DIR"/PROGRAMS/TEST.EXE
+        sudo cp "$PROJECT_ROOT/programs/test.exe" "$MOUNT_DIR"/SYSTEM/TEST.EXE
         echo "  TEST.EXE"
     fi
 
-    echo "Creating AUTOEXEC.BAT..."
-    echo "@ECHO OFF" | sudo tee "$MOUNT_DIR"/AUTOEXEC.BAT > /dev/null
-    echo "PATH C:\\SYSTEM;C:\\PROGRAMS" | sudo tee -a "$MOUNT_DIR"/AUTOEXEC.BAT > /dev/null
-    echo "PROMPT \$P\$G" | sudo tee -a "$MOUNT_DIR"/AUTOEXEC.BAT > /dev/null
+    echo "Creating AUTOEXEC.BAT in /SYSTEM/..."
+    echo "SET PATH=C:\\SYSTEM" | sudo tee "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
+    echo "TEST" | sudo tee -a "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
 
-    echo "Creating CONFIG.SYS..."
-    echo "FILES=30" | sudo tee "$MOUNT_DIR"/CONFIG.SYS > /dev/null
-    echo "BUFFERS=20" | sudo tee -a "$MOUNT_DIR"/CONFIG.SYS > /dev/null
+    echo "Creating CONFIG.SYS in /SYSTEM/..."
+    echo "FILES=30" | sudo tee "$MOUNT_DIR"/SYSTEM/CONFIG.SYS > /dev/null
+    echo "BUFFERS=20" | sudo tee -a "$MOUNT_DIR"/SYSTEM/CONFIG.SYS > /dev/null
 
     echo "Syncing..."
     sync
@@ -113,8 +101,7 @@ fi
 echo ""
 echo "=== Disk image created: $IMAGE ($SIZE_MB MB) ==="
 echo "Directory structure:"
-echo "  /SYSTEM/       - System files"
-echo "  /PROGRAMS/     - Executable programs"
+echo "  /SYSTEM/       - System files, configs, and executables"
 echo "  /TEMP/         - Temporary files"
 echo "  /USERS/        - User profiles"
 echo "  /USERS/DEFAULT - Default user profile"

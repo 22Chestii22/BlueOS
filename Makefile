@@ -25,19 +25,20 @@ KERNEL_SRCS = \
     kernel/printf.c \
     kernel/mem.c \
     kernel/idt.c \
-    kernel/timer.c \
-    kernel/keyb.c \
     kernel/paging.c \
     kernel/process.c \
     kernel/scheduler.c \
     kernel/vfs.c \
-    kernel/ata.c \
-    kernel/fat.c \
     kernel/pe.c \
     kernel/syscall.c \
     kernel/serial.c \
     kernel/gdt.c \
-    kernel/cmd.c
+    kernel/cmd.c \
+    kernel/module.c \
+    modules/keyb/keyb.c \
+    modules/timer/timer.c \
+    modules/ata/ata.c \
+    modules/fat/fat.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.asm=.o)
 KERNEL_OBJS := $(KERNEL_OBJS:.c=.o)
@@ -71,7 +72,7 @@ programs/edit/edit.exe: programs/edit/edit.asm scripts/make_pe.py
 	nasm -f bin -o programs/edit/edit.bin programs/edit/edit.asm
 	python3 scripts/make_pe.py programs/edit/edit.bin programs/edit/edit.exe
 
-disk.img: programs/edit/edit.exe programs/test.exe scripts/build_image.sh
+disk.img: programs/test.exe scripts/build_image.sh
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
@@ -83,5 +84,5 @@ debug: blueos.iso disk.img
 clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img
 	rm -f programs/test.bin programs/test.exe
-	rm -f programs/edit/edit.bin programs/edit/edit.exe
+	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o
 	rm -rf iso

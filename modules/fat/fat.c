@@ -1,9 +1,5 @@
 #include "types.h"
-#include "string.h"
-#include "screen.h"
-#include "mem.h"
-#include "io.h"
-#include "ata.h"
+#include "kernel_api.h"
 #include "vfs.h"
 
 #define SECTOR_SIZE 512
@@ -74,16 +70,17 @@ typedef struct
     int device;
 } fat32_t;
 
+static kernel_api_t* api = NULL;
 static fat32_t fat;
 
 static int fat_read_sector(uint32_t lba, void* buffer)
 {
-    return ata_read_sectors(ATA_PRIMARY_IO, 1, lba, 1, buffer);
+    return api->ata_read_sectors(0x1F0, 1, lba, 1, buffer);
 }
 
 static int fat_write_sector(uint32_t lba, const void* buffer)
 {
-    return ata_write_sectors(ATA_PRIMARY_IO, 1, lba, 1, buffer);
+    return api->ata_write_sectors(0x1F0, 1, lba, 1, buffer);
 }
 
 static uint32_t fat_get_next_cluster(uint32_t cluster)
@@ -229,15 +226,15 @@ static int fat_name_match(const uint8_t* fat_name, const char* name)
     }
     name_up[ni] = 0;
 
-    return strcmp(fat_name_str, name_up) == 0;
+    return api->strcmp(fat_name_str, name_up) == 0;
 }
 
 static void to_fat_name(const char* name, uint8_t* fat_name)
 {
-    memset(fat_name, ' ', 11);
+    api->memset(fat_name, ' ', 11);
 
     int dot_pos = -1;
-    int len = strlen(name);
+    int len = api->strlen(name);
 
     for (int i = 0; i < len; i++)
     {
@@ -276,7 +273,7 @@ static void to_fat_name(const char* name, uint8_t* fat_name)
 
 static void split_path(const char* path, char* dir, char* name)
 {
-    int len = strlen(path);
+    int len = api->strlen(path);
     int last_sep = -1;
 
     for (int i = len - 1; i >= 0; i--)
@@ -291,14 +288,14 @@ static void split_path(const char* path, char* dir, char* name)
     if (last_sep < 0)
     {
         dir[0] = 0;
-        strcpy(name, path);
+        api->strcpy(name, path);
     }
     else
     {
-        strncpy(dir, path, last_sep);
+        api->strncpy(dir, path, last_sep);
         dir[last_sep] = 0;
-        if (dir[0] == 0) strcpy(dir, "\\");
-        strcpy(name, path + last_sep + 1);
+        if (dir[0] == 0) api->strcpy(dir, "\\");
+        api->strcpy(name, path + last_sep + 1);
     }
 }
 
@@ -306,13 +303,19 @@ static int fat_find_entry_in_dir(uint32_t dir_cluster, const char* name,
                                   fat32_dir_entry_t* entry,
                                   uint32_t* out_cluster, uint32_t* out_offset)
 {
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
+
     while (dir_cluster >= 2 && dir_cluster < 0x0FFFFFF8)
     {
-        uint8_t cluster_data[8192];
         if (fat_read_cluster(dir_cluster, cluster_data) != 0)
+        {
+            api->free(cluster_data);
             return -1;
+        }
 
-        int entries_per_cluster = (fat.bpb.sectors_per_cluster * SECTOR_SIZE) / 32;
+        int entries_per_cluster = cluster_size / 32;
 
         for (int i = 0; i < entries_per_cluster; i++)
         {
@@ -325,9 +328,10 @@ static int fat_find_entry_in_dir(uint32_t dir_cluster, const char* name,
 
             if (fat_name_match(e->name, name))
             {
-                if (entry) memcpy(entry, e, sizeof(fat32_dir_entry_t));
+                if (entry) api->memcpy(entry, e, sizeof(fat32_dir_entry_t));
                 if (out_cluster) *out_cluster = dir_cluster;
                 if (out_offset) *out_offset = i * 32;
+                api->free(cluster_data);
                 return 0;
             }
         }
@@ -335,18 +339,25 @@ static int fat_find_entry_in_dir(uint32_t dir_cluster, const char* name,
         dir_cluster = fat_get_next_cluster(dir_cluster);
     }
 
+    api->free(cluster_data);
     return -1;
 }
 
 static int fat_find_free_slot(uint32_t dir_cluster, uint32_t* out_cluster, uint32_t* out_offset)
 {
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
+
     while (dir_cluster >= 2 && dir_cluster < 0x0FFFFFF8)
     {
-        uint8_t cluster_data[8192];
         if (fat_read_cluster(dir_cluster, cluster_data) != 0)
+        {
+            api->free(cluster_data);
             return -1;
+        }
 
-        int entries_per_cluster = (fat.bpb.sectors_per_cluster * SECTOR_SIZE) / 32;
+        int entries_per_cluster = cluster_size / 32;
 
         for (int i = 0; i < entries_per_cluster; i++)
         {
@@ -356,6 +367,7 @@ static int fat_find_free_slot(uint32_t dir_cluster, uint32_t* out_cluster, uint3
             {
                 if (out_cluster) *out_cluster = dir_cluster;
                 if (out_offset) *out_offset = i * 32;
+                api->free(cluster_data);
                 return 0;
             }
         }
@@ -363,17 +375,26 @@ static int fat_find_free_slot(uint32_t dir_cluster, uint32_t* out_cluster, uint3
         dir_cluster = fat_get_next_cluster(dir_cluster);
     }
 
+    api->free(cluster_data);
     return -1;
 }
 
 static int fat_write_single_entry(uint32_t cluster, uint32_t offset, fat32_dir_entry_t* entry)
 {
-    uint8_t cluster_data[8192];
-    if (fat_read_cluster(cluster, cluster_data) != 0)
-        return -1;
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
 
-    memcpy(cluster_data + offset, entry, sizeof(fat32_dir_entry_t));
-    return fat_write_cluster(cluster, cluster_data);
+    if (fat_read_cluster(cluster, cluster_data) != 0)
+    {
+        api->free(cluster_data);
+        return -1;
+    }
+
+    api->memcpy(cluster_data + offset, entry, sizeof(fat32_dir_entry_t));
+    int ret = fat_write_cluster(cluster, cluster_data);
+    api->free(cluster_data);
+    return ret;
 }
 
 static int fat_find_entry(const char* path, fat32_dir_entry_t* entry)
@@ -384,14 +405,14 @@ static int fat_find_entry(const char* path, fat32_dir_entry_t* entry)
     char* segments[64];
     int num_segments = 0;
 
-    strncpy(clean_path, path, 255);
+    api->strncpy(clean_path, path, 255);
 
     char* p = clean_path;
     while (*p == '/' || *p == '\\') p++;
 
     if (*p == 0)
     {
-        memset(entry, 0, sizeof(fat32_dir_entry_t));
+        api->memset(entry, 0, sizeof(fat32_dir_entry_t));
         entry->attr = ATTR_DIRECTORY;
         entry->cluster_lo = fat.bpb.root_cluster & 0xFFFF;
         entry->cluster_hi = (fat.bpb.root_cluster >> 16) & 0xFFFF;
@@ -412,17 +433,23 @@ static int fat_find_entry(const char* path, fat32_dir_entry_t* entry)
 
     uint32_t current_cluster = fat.bpb.root_cluster;
     fat32_dir_entry_t current_entry;
-    memset(&current_entry, 0, sizeof(fat32_dir_entry_t));
+    api->memset(&current_entry, 0, sizeof(fat32_dir_entry_t));
     current_entry.cluster_lo = current_cluster & 0xFFFF;
     current_entry.cluster_hi = (current_cluster >> 16) & 0xFFFF;
 
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
+
     for (int s = 0; s < num_segments; s++)
     {
-        uint8_t cluster_data[8192];
         if (fat_read_cluster(current_cluster, cluster_data) != 0)
+        {
+            api->free(cluster_data);
             return -1;
+        }
 
-        int entries_per_cluster = (fat.bpb.sectors_per_cluster * SECTOR_SIZE) / 32;
+        int entries_per_cluster = cluster_size / 32;
         int found = 0;
 
         for (int i = 0; i < entries_per_cluster; i++)
@@ -436,32 +463,39 @@ static int fat_find_entry(const char* path, fat32_dir_entry_t* entry)
 
             if (fat_name_match(e->name, segments[s]))
             {
-                memcpy(&current_entry, e, sizeof(fat32_dir_entry_t));
+                api->memcpy(&current_entry, e, sizeof(fat32_dir_entry_t));
                 current_cluster = (e->cluster_hi << 16) | e->cluster_lo;
                 found = 1;
 
                 if (s < num_segments - 1 && !(e->attr & ATTR_DIRECTORY))
+                {
+                    api->free(cluster_data);
                     return -1;
+                }
 
                 break;
             }
         }
 
         if (!found)
+        {
+            api->free(cluster_data);
             return -1;
+        }
     }
 
-    memcpy(entry, &current_entry, sizeof(fat32_dir_entry_t));
+    api->free(cluster_data);
+    api->memcpy(entry, &current_entry, sizeof(fat32_dir_entry_t));
     return 0;
 }
 
 static int fat_mount_impl(void* fs, int device)
 {
     uint8_t buffer[SECTOR_SIZE];
-    if (ata_read_sectors(ATA_PRIMARY_IO, 1, 0, 1, buffer) != 0)
+    if (api->ata_read_sectors(0x1F0, 1, 0, 1, buffer) != 0)
         return -1;
 
-    memcpy(&fat.bpb, buffer, sizeof(fat32_bpb_t));
+    api->memcpy(&fat.bpb, buffer, sizeof(fat32_bpb_t));
 
     if (fat.bpb.bytes_per_sector != 512) return -1;
     if (fat.bpb.fat_size_32 == 0) return -1;
@@ -474,7 +508,7 @@ static int fat_mount_impl(void* fs, int device)
     fat.device = device;
     fat.mounted = 1;
 
-    printf("[FAT32] Mounted! OEM: %.8s, Size: %d MB, Root cluster: %d\n",
+    api->printf("[FAT32] Mounted! OEM: %.8s, Size: %d MB, Root cluster: %d\n",
            fat.bpb.oem,
            fat.bpb.total_sectors_32 / 2048,
            fat.bpb.root_cluster);
@@ -493,28 +527,33 @@ static int fat_read_impl(void* fs, const char* path, void* buffer, uint32_t size
     uint32_t to_read = size < entry.file_size ? size : entry.file_size;
     uint8_t* buf = (uint8_t*)buffer;
 
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
+
     while (bytes_read < to_read && cluster < 0x0FFFFFF8)
     {
-        uint8_t cluster_data[8192];
         if (fat_read_cluster(cluster, cluster_data) != 0)
+        {
+            api->free(cluster_data);
             return bytes_read;
+        }
 
-        uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
         uint32_t chunk = (to_read - bytes_read) < cluster_size ?
                           (to_read - bytes_read) : cluster_size;
 
-        memcpy(buf + bytes_read, cluster_data, chunk);
+        api->memcpy(buf + bytes_read, cluster_data, chunk);
         bytes_read += chunk;
 
         cluster = fat_get_next_cluster(cluster);
     }
 
+    api->free(cluster_data);
     return bytes_read;
 }
 
 static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32_t size)
 {
-    UNUSED(fs);
     if (!path || !buffer || path[0] == 0) return -1;
     if (size == 0) return 0;
 
@@ -536,13 +575,13 @@ static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32
     if (needed_clusters == 0) needed_clusters = 1;
     if (needed_clusters > 0x100000) return -1;
 
-    uint32_t* chain = (uint32_t*)malloc(needed_clusters * sizeof(uint32_t));
+    uint32_t* chain = (uint32_t*)api->malloc(needed_clusters * sizeof(uint32_t));
     if (!chain) return -1;
 
     uint32_t first_cluster = fat_alloc_clusters(needed_clusters, chain);
     if (first_cluster == 0x0FFFFFFF || first_cluster == 0)
     {
-        free(chain);
+        api->free(chain);
         return -1;
     }
 
@@ -550,12 +589,14 @@ static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32
     uint32_t cl = first_cluster;
     const uint8_t* buf = (const uint8_t*)buffer;
 
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) { api->free(chain); return -1; }
+
     while (written < (int)size && cl >= 2 && cl < 0x0FFFFFF8)
     {
-        uint8_t cluster_data[8192];
         uint32_t chunk = (size - written) < cluster_size ? (size - written) : cluster_size;
-        memset(cluster_data, 0, cluster_size);
-        memcpy(cluster_data, buf + written, chunk);
+        api->memset(cluster_data, 0, cluster_size);
+        api->memcpy(cluster_data, buf + written, chunk);
 
         if (fat_write_cluster(cl, cluster_data) != 0) break;
 
@@ -564,7 +605,7 @@ static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32
     }
 
     fat32_dir_entry_t new_entry;
-    memset(&new_entry, 0, sizeof(fat32_dir_entry_t));
+    api->memset(&new_entry, 0, sizeof(fat32_dir_entry_t));
     to_fat_name(filename, new_entry.name);
     new_entry.attr = ATTR_ARCHIVE;
     new_entry.cluster_lo = first_cluster & 0xFFFF;
@@ -591,18 +632,18 @@ static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32
         else
         {
             fat_free_chain(first_cluster);
-            free(chain);
+            api->free(chain);
             return -1;
         }
     }
 
-    free(chain);
+    api->free(cluster_data);
+    api->free(chain);
     return written;
 }
 
 static int fat_open_impl(void* fs, const char* path, int flags)
 {
-    UNUSED(fs);
     fat32_dir_entry_t entry;
     if (fat_find_entry(path, &entry) == 0)
         return 1;
@@ -618,7 +659,6 @@ static int fat_close_impl(void* fs, int fd)
 
 static int fat_readdir_impl(void* fs, const char* path, char* entries, int max_entries)
 {
-    UNUSED(fs);
     fat32_dir_entry_t dir_entry;
     if (fat_find_entry(path, &dir_entry) != 0) return -1;
     if (!(dir_entry.attr & ATTR_DIRECTORY)) return -1;
@@ -627,12 +667,15 @@ static int fat_readdir_impl(void* fs, const char* path, char* entries, int max_e
     int count = 0;
     int pos = 0;
 
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
+
     while (cluster >= 2 && cluster < 0x0FFFFFF8)
     {
-        uint8_t cluster_data[8192];
         if (fat_read_cluster(cluster, cluster_data) != 0) break;
 
-        int entries_per_cluster = (fat.bpb.sectors_per_cluster * SECTOR_SIZE) / 32;
+        int entries_per_cluster = cluster_size / 32;
 
         for (int i = 0; i < entries_per_cluster; i++)
         {
@@ -694,13 +737,13 @@ static int fat_readdir_impl(void* fs, const char* path, char* entries, int max_e
     }
 
 done:
+    api->free(cluster_data);
     entries[pos] = 0;
     return count;
 }
 
 static int fat_mkdir_impl(void* fs, const char* path)
 {
-    UNUSED(fs);
     if (!path || path[0] == 0) return -1;
 
     fat32_dir_entry_t existing;
@@ -719,40 +762,40 @@ static int fat_mkdir_impl(void* fs, const char* path)
     if (cluster == 0x0FFFFFFF || cluster == 0) return -1;
 
     uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
-    uint8_t* cluster_data = (uint8_t*)malloc(cluster_size);
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
     if (!cluster_data)
     {
         fat_set_fat_entry(cluster, 0);
         return -1;
     }
-    memset(cluster_data, 0, cluster_size);
+    api->memset(cluster_data, 0, cluster_size);
 
     fat32_dir_entry_t dot;
-    memset(&dot, 0, sizeof(dot));
-    memset(dot.name, ' ', 11);
+    api->memset(&dot, 0, sizeof(dot));
+    api->memset(dot.name, ' ', 11);
     dot.name[0] = '.';
     dot.attr = ATTR_DIRECTORY;
     dot.cluster_lo = cluster & 0xFFFF;
     dot.cluster_hi = (cluster >> 16) & 0xFFFF;
-    memcpy(cluster_data, &dot, sizeof(fat32_dir_entry_t));
+    api->memcpy(cluster_data, &dot, sizeof(fat32_dir_entry_t));
 
     fat32_dir_entry_t dotdot;
-    memset(&dotdot, 0, sizeof(dotdot));
-    memset(dotdot.name, ' ', 11);
+    api->memset(&dotdot, 0, sizeof(dotdot));
+    api->memset(dotdot.name, ' ', 11);
     dotdot.name[0] = '.';
     dotdot.name[1] = '.';
     dotdot.attr = ATTR_DIRECTORY;
     dotdot.cluster_lo = parent_cluster & 0xFFFF;
     dotdot.cluster_hi = (parent_cluster >> 16) & 0xFFFF;
-    memcpy(cluster_data + 32, &dotdot, sizeof(fat32_dir_entry_t));
+    api->memcpy(cluster_data + 32, &dotdot, sizeof(fat32_dir_entry_t));
 
     if (fat_write_cluster(cluster, cluster_data) != 0)
     {
         fat_set_fat_entry(cluster, 0);
-        free(cluster_data);
+        api->free(cluster_data);
         return -1;
     }
-    free(cluster_data);
+    api->free(cluster_data);
 
     uint32_t ec, eo;
     if (fat_find_free_slot(parent_cluster, &ec, &eo) != 0)
@@ -762,7 +805,7 @@ static int fat_mkdir_impl(void* fs, const char* path)
     }
 
     fat32_dir_entry_t new_entry;
-    memset(&new_entry, 0, sizeof(fat32_dir_entry_t));
+    api->memset(&new_entry, 0, sizeof(fat32_dir_entry_t));
     to_fat_name(dirname, new_entry.name);
     new_entry.attr = ATTR_DIRECTORY;
     new_entry.cluster_lo = cluster & 0xFFFF;
@@ -779,7 +822,6 @@ static int fat_mkdir_impl(void* fs, const char* path)
 
 static int fat_unlink_impl(void* fs, const char* path)
 {
-    UNUSED(fs);
     if (!path || path[0] == 0) return -1;
 
     fat32_dir_entry_t entry;
@@ -815,7 +857,6 @@ static int fat_unlink_impl(void* fs, const char* path)
 
 static int fat_rename_impl(void* fs, const char* old_path, const char* new_path)
 {
-    UNUSED(fs);
     fat32_dir_entry_t entry;
     if (fat_find_entry(old_path, &entry) != 0) return -1;
     if (fat_find_entry(new_path, &entry) == 0) return -1;
@@ -825,7 +866,7 @@ static int fat_rename_impl(void* fs, const char* old_path, const char* new_path)
     split_path(old_path, old_dir, old_name);
     split_path(new_path, new_dir, new_name);
 
-    if (strcmp(old_dir, new_dir) != 0) return -1;
+    if (api->strcmp(old_dir, new_dir) != 0) return -1;
 
     fat32_dir_entry_t parent_entry;
     if (fat_find_entry(old_dir, &parent_entry) != 0) return -1;
@@ -835,16 +876,25 @@ static int fat_rename_impl(void* fs, const char* old_path, const char* new_path)
     if (fat_find_entry_in_dir(parent_cluster, old_name, NULL, &dir_cluster, &entry_offset) != 0)
         return -1;
 
-    uint8_t cluster_data[8192];
-    if (fat_read_cluster(dir_cluster, cluster_data) != 0) return -1;
+    uint32_t cluster_size = fat.bpb.sectors_per_cluster * SECTOR_SIZE;
+    uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
+    if (!cluster_data) return -1;
+
+    if (fat_read_cluster(dir_cluster, cluster_data) != 0)
+    {
+        api->free(cluster_data);
+        return -1;
+    }
 
     fat32_dir_entry_t* ep = (fat32_dir_entry_t*)(cluster_data + entry_offset);
     to_fat_name(new_name, ep->name);
 
-    return fat_write_cluster(dir_cluster, cluster_data);
+    int ret = fat_write_cluster(dir_cluster, cluster_data);
+    api->free(cluster_data);
+    return ret;
 }
 
-int fat_register(void)
+static int fat_register(void)
 {
     return vfs_mount(
         "FAT32", 0,
@@ -889,4 +939,11 @@ uint32_t fat_get_data_start(void)
 int fat_is_mounted(void)
 {
     return fat.mounted;
+}
+
+void fat_module_init(kernel_api_t* kapi)
+{
+    api = kapi;
+    fat_register();
+    api->printf("[FAT32] Module loaded\n");
 }

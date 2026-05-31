@@ -5,8 +5,6 @@
 #include "scheduler.h"
 #include "mem.h"
 #include "idt.h"
-#include "timer.h"
-#include "keyb.h"
 #include "vfs.h"
 #include "fat.h"
 #include "syscall.h"
@@ -15,6 +13,7 @@
 #include "gdt.h"
 #include "paging.h"
 #include "pe.h"
+#include "module.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -93,12 +92,12 @@ void kernel_main(void* mbd, uint32_t magic)
     paging_init(mem_size);
     gdt_init();
     idt_init();
-    timer_init(100);
+    keyb_module_init(&kernel_api);
+    timer_module_init(&kernel_api);
+    ata_module_init(&kernel_api);
+    fat_module_init(&kernel_api);
     process_init();
-    fat_register();
     syscall_init();
-
-    irq_install_handler(1, (void*)keyboard_handler);
 
     scheduler_init();
     process_create("cmd.exe", (uint64_t)cmd_run, 0);

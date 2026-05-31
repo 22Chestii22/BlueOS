@@ -1,11 +1,10 @@
 #include "types.h"
-#include "io.h"
-#include "screen.h"
+#include "kernel_api.h"
 #include "process.h"
 #include "paging.h"
 #include "gdt.h"
-#include "string.h"
 
+static kernel_api_t* api = NULL;
 static volatile uint64_t tick_count = 0;
 static volatile int scheduling_enabled = 0;
 
@@ -13,7 +12,7 @@ extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
 void timer_handler_and_schedule(context_t* frame)
 {
-    outb(0x20, 0x20);
+    api->outb(0x20, 0x20);
     tick_count++;
 
     if (!scheduling_enabled) return;
@@ -21,8 +20,7 @@ void timer_handler_and_schedule(context_t* frame)
     process_t* current = process_get_current();
     if (!current || current->state != PROCESS_RUNNING) return;
 
-    if ((frame->cs & 3) == 0)
-        return;
+    if ((frame->cs & 3) == 0) return;
 
     process_yield();
     process_t* next = process_get_ready();
@@ -89,7 +87,15 @@ void timer_scheduler_enable(void)
 void timer_init(int frequency)
 {
     int divisor = 1193180 / frequency;
-    outb(0x43, 0x36);
-    outb(0x40, (uint8_t)(divisor & 0xFF));
-    outb(0x40, (uint8_t)((divisor >> 8) & 0xFF));
+    api->outb(0x43, 0x36);
+    api->outb(0x40, (uint8_t)(divisor & 0xFF));
+    api->outb(0x40, (uint8_t)((divisor >> 8) & 0xFF));
+}
+
+void timer_module_init(kernel_api_t* kapi)
+{
+    api = kapi;
+    timer_init(100);
+    api->irq_install_handler(0, (void*)timer_handler);
+    api->printf("[TIMER] Module loaded\n");
 }

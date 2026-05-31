@@ -180,32 +180,56 @@ void isr_handler(int num, uint64_t error_code, uint64_t rip)
 
     screen_set_color(COLOR_WHITE, COLOR_BLUE);
     screen_clear();
-
     screen_set_color(COLOR_WHITE, COLOR_BLUE);
 
     int y = 2;
-    screen_set_cursor(30, y);
-    printf("-_-");
 
-    y += 2; screen_set_cursor(2, y);
-    printf("BlueOS has encountered a problem and needs to restart.");
+    screen_set_cursor(VGA_WIDTH / 2 - 1, y);
+    printf(":(");
 
-    y += 2; screen_set_cursor(2, y);
+    y = 5;
+    screen_set_cursor(2, y);
+    printf("Your PC ran into a problem and needs to restart.");
+
+    y = 6;
+    screen_set_cursor(2, y);
+    printf("We'll restart for you after collecting some error info.");
+
+    y = 8;
+    screen_set_cursor(2, y);
     printf("*** STOP: 0x000000%02x", num);
     if (num < 22)
-        printf(" (%s)", exception_messages[num]);
+    {
+        screen_set_cursor(2, y);
+        printf("*** STOP: 0x000000%02x  (%s)", num, exception_messages[num]);
+    }
 
-    y += 1; screen_set_cursor(2, y);
+    y = 10;
     if (num == 14)
+    {
+        screen_set_cursor(2, y);
         printf("***       CR2=0x%x  Error=0x%x", read_cr2(), error_code);
+    }
+    else
+    {
+        screen_set_cursor(2, y);
+        printf("***       Error=0x%x", error_code);
+    }
 
-    y += 1; screen_set_cursor(2, y);
-    printf("***       RIP=0x%x", rip);
+    y = 11;
+    screen_set_cursor(2, y);
+    printf("***       RIP=0x%x  CS=0x%x  SS=0x%x", rip, read_cs(), read_ss());
 
-    y += 1; screen_set_cursor(2, y);
-    printf("***       CS=0x%x SS=0x%x CR3=0x%x", read_cs(), read_ss(), read_cr3());
+    y = 12;
+    screen_set_cursor(2, y);
+    printf("***       RFLAGS=0x%x  CR3=0x%x", read_cr0() & 0xFFFF, read_cr3());
 
-    y = VGA_HEIGHT - 2; screen_set_cursor(VGA_WIDTH / 2 - 18, y);
+    y = 14;
+    screen_set_cursor(2, y);
+    printf("For more information, visit: blueos.local/stop");
+
+    y = VGA_HEIGHT - 2;
+    screen_set_cursor(VGA_WIDTH / 2 - 13, y);
     printf("Press any key to restart...");
 
     __asm__ volatile("cli; hlt");

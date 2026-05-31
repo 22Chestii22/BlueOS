@@ -4,7 +4,7 @@
 #include "types.h"
 
 #define MAX_PROCESSES 64
-#define STACK_SIZE 8192
+#define STACK_SIZE 16384
 #define PROCESS_NAME_MAX 32
 
 typedef enum

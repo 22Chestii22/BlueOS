@@ -7,6 +7,7 @@
 #include "timer.h"
 
 extern void process_switch(context_t** old, context_t* new);
+extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
 static volatile int scheduling_enabled = 0;
 
@@ -51,13 +52,15 @@ void schedule(void)
 
     if (next->page_table)
         paging_switch(next->page_table);
+    else if (current && current->page_table)
+        paging_switch(kernel_cr3);
 
     if (current && current->state != PROCESS_TERMINATED)
         process_switch(&current->context, next->context);
     else
     {
-        void* dummy;
-        process_switch((context_t**)&dummy, next->context);
+        printf("[SCHED] Direct context_activate to '%s' (PID %d)\n", next->name, next->pid);
+        context_activate(next->context, kstack);
     }
 }
 

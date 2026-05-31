@@ -2,6 +2,7 @@
 #include "string.h"
 #include "screen.h"
 #include "process.h"
+#include "scheduler.h"
 #include "mem.h"
 #include "paging.h"
 #include "gdt.h"
@@ -199,6 +200,7 @@ void process_exit(int code)
         current_process->exit_code = code;
         remove_from_ready_queue(current_process);
     }
+    schedule();
     for (;;)
         __asm__ volatile("hlt");
 }
@@ -237,7 +239,7 @@ void process_wait(uint32_t pid)
 {
     while (process_is_alive(pid))
     {
-        __asm__ volatile("pause");
+        schedule();
     }
 }
 

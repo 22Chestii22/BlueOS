@@ -1,5 +1,5 @@
 #include "types.h"
-#include "io.h"
+#include "kernel_api.h"
 
 #define ATA_PRIMARY_IO      0x1F0
 #define ATA_PRIMARY_CTRL    0x3F6
@@ -33,6 +33,7 @@
 
 #define ATA_TIMEOUT_DEFAULT 10000000
 
+static kernel_api_t* api = NULL;
 static int ata_timeout = ATA_TIMEOUT_DEFAULT;
 
 void ata_set_timeout(int timeout)
@@ -46,11 +47,11 @@ static int ata_wait(int io_base, int check_drq)
     int timeout = ata_timeout;
 
     for (int i = 0; i < 4; i++)
-        inb(io_base + ATA_REG_STATUS);
+        api->inb(io_base + ATA_REG_STATUS);
 
     while (timeout--)
     {
-        status = inb(io_base + ATA_REG_STATUS);
+        status = api->inb(io_base + ATA_REG_STATUS);
         if (status & ATA_SR_BSY)
             continue;
         if (status & ATA_SR_ERR)
@@ -73,16 +74,16 @@ int ata_read_sectors(int io_base, int master, uint32_t lba, uint8_t count, void*
 {
     int drive = master ? 0xE0 : 0xF0;
 
-    outb(io_base + ATA_REG_DRIVE, drive | ((lba >> 24) & 0x0F));
+    api->outb(io_base + ATA_REG_DRIVE, drive | ((lba >> 24) & 0x0F));
     if (ata_wait(io_base, 0))
         return -1;
 
-    outb(io_base + ATA_REG_FEATURES, 0);
-    outb(io_base + ATA_REG_SECCOUNT, count);
-    outb(io_base + ATA_REG_LBA0, (uint8_t)(lba & 0xFF));
-    outb(io_base + ATA_REG_LBA1, (uint8_t)((lba >> 8) & 0xFF));
-    outb(io_base + ATA_REG_LBA2, (uint8_t)((lba >> 16) & 0xFF));
-    outb(io_base + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
+    api->outb(io_base + ATA_REG_FEATURES, 0);
+    api->outb(io_base + ATA_REG_SECCOUNT, count);
+    api->outb(io_base + ATA_REG_LBA0, (uint8_t)(lba & 0xFF));
+    api->outb(io_base + ATA_REG_LBA1, (uint8_t)((lba >> 8) & 0xFF));
+    api->outb(io_base + ATA_REG_LBA2, (uint8_t)((lba >> 16) & 0xFF));
+    api->outb(io_base + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
 
     uint16_t* buf = (uint16_t*)buffer;
 
@@ -92,7 +93,7 @@ int ata_read_sectors(int io_base, int master, uint32_t lba, uint8_t count, void*
             return -1;
 
         for (int i = 0; i < 256; i++)
-            buf[i] = inw(io_base + ATA_REG_DATA);
+            buf[i] = api->inw(io_base + ATA_REG_DATA);
 
         buf += 256;
     }
@@ -104,16 +105,16 @@ int ata_write_sectors(int io_base, int master, uint32_t lba, uint8_t count, cons
 {
     int drive = master ? 0xE0 : 0xF0;
 
-    outb(io_base + ATA_REG_DRIVE, drive | ((lba >> 24) & 0x0F));
+    api->outb(io_base + ATA_REG_DRIVE, drive | ((lba >> 24) & 0x0F));
     if (ata_wait(io_base, 0))
         return -1;
 
-    outb(io_base + ATA_REG_FEATURES, 0);
-    outb(io_base + ATA_REG_SECCOUNT, count);
-    outb(io_base + ATA_REG_LBA0, (uint8_t)(lba & 0xFF));
-    outb(io_base + ATA_REG_LBA1, (uint8_t)((lba >> 8) & 0xFF));
-    outb(io_base + ATA_REG_LBA2, (uint8_t)((lba >> 16) & 0xFF));
-    outb(io_base + ATA_REG_COMMAND, ATA_CMD_WRITE_PIO);
+    api->outb(io_base + ATA_REG_FEATURES, 0);
+    api->outb(io_base + ATA_REG_SECCOUNT, count);
+    api->outb(io_base + ATA_REG_LBA0, (uint8_t)(lba & 0xFF));
+    api->outb(io_base + ATA_REG_LBA1, (uint8_t)((lba >> 8) & 0xFF));
+    api->outb(io_base + ATA_REG_LBA2, (uint8_t)((lba >> 16) & 0xFF));
+    api->outb(io_base + ATA_REG_COMMAND, ATA_CMD_WRITE_PIO);
 
     const uint16_t* buf = (const uint16_t*)buffer;
 
@@ -123,9 +124,9 @@ int ata_write_sectors(int io_base, int master, uint32_t lba, uint8_t count, cons
             return -1;
 
         for (int i = 0; i < 256; i++)
-            outw(io_base + ATA_REG_DATA, buf[i]);
+            api->outw(io_base + ATA_REG_DATA, buf[i]);
 
-        outb(io_base + ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
+        api->outb(io_base + ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
         if (ata_wait(io_base, 0))
             return -1;
 
@@ -133,4 +134,11 @@ int ata_write_sectors(int io_base, int master, uint32_t lba, uint8_t count, cons
     }
 
     return 0;
+}
+
+void ata_module_init(kernel_api_t* kapi)
+{
+    api = kapi;
+    api->printf("[ATA] Module loaded (primary=0x%x, secondary=0x%x)\n",
+                ATA_PRIMARY_IO, ATA_SECONDARY_IO);
 }

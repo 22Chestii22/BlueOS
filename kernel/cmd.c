@@ -209,7 +209,7 @@ static int expand_env_vars(char* out, const char* in, int max_out)
 
 static void env_init(void)
 {
-    env_set("PATH", "\\Windows\\System32;\\Programs");
+    env_set("PATH", "\\SYSTEM");
 }
 
 static void build_prompt(char* buf, int max_len)
@@ -1168,7 +1168,7 @@ static int run_external(const char* name, char* args)
     strcpy(path, current_dir);
     strcat(path, "\\");
     strcat(path, name);
-    if (!has_ext) strcat(path, is_bat ? ".bat" : ".exe");
+    if (!has_ext) strcat(path, is_bat ? ".BAT" : ".EXE");
 
     if (is_bat)
     {
@@ -1180,12 +1180,12 @@ static int run_external(const char* name, char* args)
         found = 1;
     }
 
-    // Try \Programs\
+    // Try \SYSTEM\
     if (!found && !is_bat)
     {
-        char prog_path[256] = "\\Programs\\";
+        char prog_path[256] = "\\SYSTEM\\";
         strcat(prog_path, name);
-        if (!has_ext) strcat(prog_path, ".exe");
+        if (!has_ext) strcat(prog_path, ".EXE");
 
         if (pe_check_format(prog_path))
         {
@@ -1204,14 +1204,9 @@ static int run_external(const char* name, char* args)
     if (found)
     {
         printf("[CMD] Starting '%s'...\n", path);
-        int pid = pe_spawn(path);
-        if (pid > 0)
-        {
-            printf("[CMD] Started PID %d\n", pid);
-            printf("[CMD] Waiting for PID %d to exit...\n", pid);
-            process_wait(pid);
-            printf("[CMD] PID %d exited\n", pid);
-        }
+        int result = pe_load_and_exec(path, args);
+        if (result == 0)
+            printf("[CMD] Program exited\n");
         else
             printf("Failed to start program.\n");
         return 0;
@@ -1228,6 +1223,8 @@ void cmd_run(void)
 
     timer_scheduler_enable();
     env_init();
+
+    run_batch("\\SYSTEM\\AUTOEXEC.BAT");
 
     build_prompt(prompt, 64);
     screen_set_color(COLOR_LIGHT_GREEN, COLOR_BLACK);

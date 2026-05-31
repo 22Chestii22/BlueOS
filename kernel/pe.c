@@ -128,30 +128,48 @@ int load_pe_image(const char* path, uint64_t* entry_point, uint64_t* image_base)
     uint32_t file_size = 0;
     void* file_data = NULL;
 
+    printf("[PE] load_pe_image('%s')\n", path);
     int fd = vfs_open(path, 0);
+    printf("[PE] vfs_open returned %d\n", fd);
+    printf("[PE] mem_free=%d mem_used=%d\n", mem_get_free(), mem_get_used());
+    {
+        uint32_t* hp = (uint32_t*)0x1000000;
+        uint32_t magic = *hp;
+        uint32_t sz = *(hp+1);
+        uint32_t fr = *(hp+2);
+        printf("[PE] heap0: magic=0x%x size=%d free=%d\n", magic, sz, fr);
+        uint64_t next = *(uint64_t*)(hp+4);
+        printf("[PE] heap0: next=0x%x\n", next);
+    }
     if (fd < 0) return -1;
 
     file_size = 0;
     file_data = malloc(65536);
+    printf("[PE] malloc(65536) = 0x%x\n", (uint64_t)file_data);
     if (!file_data)
     {
+        printf("[PE] malloc failed!\n");
         vfs_close(fd);
         return -1;
     }
 
     int bytes_read = vfs_read(fd, file_data, 65536);
     vfs_close(fd);
+    printf("[PE] vfs_read returned %d\n", bytes_read);
 
     if (bytes_read <= 0)
     {
+        printf("[PE] vfs_read failed\n");
         free(file_data);
         return -1;
     }
     file_size = bytes_read;
 
     dos_header_t* dos = (dos_header_t*)file_data;
+    printf("[PE] e_magic=0x%x\n", dos->e_magic);
     if (dos->e_magic != 0x5A4D)
     {
+        printf("[PE] bad DOS magic\n");
         free(file_data);
         return -1;
     }
