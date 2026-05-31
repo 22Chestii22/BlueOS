@@ -37,7 +37,7 @@ KERNEL_SRCS = \
     kernel/module.c \
     kernel/elf_loader.c \
     kernel/vga.c \
-    kernel/pseudo_gui.c \
+    kernel/winman.c \
     modules/keyb/keyb.c \
     modules/timer/timer.c \
     modules/ata/ata.c \

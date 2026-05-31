@@ -13,6 +13,8 @@ static int viewport_y = 0;
 static int viewport_w = VGA_WIDTH;
 static int viewport_h = VGA_HEIGHT;
 
+static int hw_cursor_enabled = 1;
+
 enum VGA_COLOR
 {
     COLOR_BLACK = 0,
@@ -110,11 +112,14 @@ void screen_putchar(char c)
     if (cursor_y >= viewport_h)
         screen_scroll();
 
-    int pos = abs_pos(cursor_x, cursor_y);
-    outb(0x3D4, 0x0F);
-    outb(0x3D5, (uint8_t)(pos & 0xFF));
-    outb(0x3D4, 0x0E);
-    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+    if (hw_cursor_enabled)
+    {
+        int pos = abs_pos(cursor_x, cursor_y);
+        outb(0x3D4, 0x0F);
+        outb(0x3D5, (uint8_t)(pos & 0xFF));
+        outb(0x3D4, 0x0E);
+        outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+    }
 }
 
 void screen_write(const char* str)
@@ -183,6 +188,11 @@ void screen_get_cursor(int* x, int* y)
 {
     *x = cursor_x;
     *y = cursor_y;
+}
+
+void screen_enable_hw_cursor(int enable)
+{
+    hw_cursor_enabled = enable;
 }
 
 void screen_set_cursor(int x, int y)

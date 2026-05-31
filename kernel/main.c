@@ -15,7 +15,7 @@
 #include "pe.h"
 #include "module.h"
 #include "vga.h"
-#include "pseudo_gui.h"
+#include "winman.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -24,11 +24,28 @@ extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
 extern void mouse_module_init(kernel_api_t* api);
 
+static int term_win = -1;
+
+static void term_putchar(char c)
+{
+    winman_putchar(term_win, c);
+}
+
 static void idle_task(void)
 {
     for (;;)
     {
         __asm__ volatile("hlt");
+        yield_to_scheduler();
+    }
+}
+
+static void gui_render_task(void)
+{
+    for (;;)
+    {
+        winman_render();
+        for (volatile int i = 0; i < 50000; i++);
         yield_to_scheduler();
     }
 }
@@ -101,7 +118,10 @@ void kernel_main(void* mbd, uint32_t magic)
     idt_init();
 
     vga_init();
-    pseudo_gui_init();
+    screen_enable_hw_cursor(0);
+    winman_init();
+    term_win = winman_create("Command Prompt", 2, 2, 60, 18);
+    screen_set_redirect(term_putchar);
 
     keyb_module_init(&kernel_api);
     timer_module_init(&kernel_api);
@@ -113,6 +133,7 @@ void kernel_main(void* mbd, uint32_t magic)
     syscall_init();
 
     scheduler_init();
+    process_create("gui_render", (uint64_t)gui_render_task, 0);
     process_create("cmd.exe", (uint64_t)cmd_run, 0);
     process_create("idle", (uint64_t)idle_task, 0);
 
