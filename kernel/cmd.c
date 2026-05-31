@@ -1204,9 +1204,13 @@ static int run_external(const char* name, char* args)
     if (found)
     {
         printf("[CMD] Starting '%s'...\n", path);
-        int result = pe_load_and_exec(path, args);
-        if (result == 0)
+        int pid = pe_spawn(path);
+        if (pid > 0)
+        {
+            printf("[CMD] PID %d spawned, waiting...\n", pid);
+            process_wait((uint32_t)pid);
             printf("[CMD] Program exited\n");
+        }
         else
             printf("Failed to start program.\n");
         return 0;

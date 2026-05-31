@@ -4,6 +4,8 @@
 #include "paging.h"
 #include "gdt.h"
 
+extern uint64_t cpu_data[4];
+
 static kernel_api_t* api = NULL;
 static volatile uint64_t tick_count = 0;
 static volatile int scheduling_enabled = 0;
@@ -45,8 +47,12 @@ void timer_handler_and_schedule(context_t* frame)
         frame->ss = 0x10;
     }
 
-    for (int i = 0; i < 20; i++)
-        ((uint64_t*)current->context)[i] = ((uint64_t*)frame)[i];
+    uint64_t* ctx = (uint64_t*)current->context;
+    uint64_t* frm = (uint64_t*)frame;
+    for (int i = 0; i < 15; i++)
+        ctx[i] = frm[14 - i];
+    for (int i = 15; i < 20; i++)
+        ctx[i] = frm[i];
 
     next->state = PROCESS_RUNNING;
     process_set_current(next);
@@ -54,6 +60,7 @@ void timer_handler_and_schedule(context_t* frame)
     uint64_t kstack = (uint64_t)next->kernel_stack + next->kernel_stack_size;
 
     gdt_set_kernel_stack(kstack);
+    cpu_data[3] = kstack;
 
     if (next->page_table)
         paging_switch(next->page_table);

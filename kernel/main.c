@@ -23,7 +23,10 @@ extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 static void idle_task(void)
 {
     for (;;)
+    {
         __asm__ volatile("hlt");
+        yield_to_scheduler();
+    }
 }
 
 static uint64_t mb2_get_mem_size(void* mbd)

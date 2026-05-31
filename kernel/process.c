@@ -235,12 +235,56 @@ int process_is_alive(uint32_t pid)
     return process_get_by_pid(pid) != NULL;
 }
 
+extern void yield_to_scheduler(void);
+extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
+extern uint64_t kernel_cr3;
+extern uint64_t cpu_data[4];
+
+// Called from yield_to_scheduler assembly.
+// Copies saved context frame to current->context, yields, and activates next ready process.
+// Returns if no other process is ready (caller cleans up stack frame and resumes).
+void yield_handler(context_t* frame)
+{
+    process_t* current = process_get_current();
+    if (!current) return;
+
+    // Copy frame to current->context.
+    // Stack frame layout: [rip, cs, rflags, rsp, ss, r15, r14, ..., rax]
+    // context_t layout:   [r15, r14, ..., rax, rip, cs, rflags, rsp, ss]
+    // So frame[i] -> ctx[(i + 15) % 20]
+    for (int i = 0; i < 20; i++)
+        ((uint64_t*)current->context)[(i + 15) % 20] = ((uint64_t*)frame)[i];
+
+    current->state = PROCESS_READY;
+    add_to_ready_queue(current);
+
+    process_t* next = process_get_ready();
+    if (!next)
+    {
+        current->state = PROCESS_RUNNING;
+        return;
+    }
+
+    next->state = PROCESS_RUNNING;
+    process_set_current(next);
+
+    uint64_t kstack = (uint64_t)next->kernel_stack + next->kernel_stack_size;
+    gdt_set_kernel_stack(kstack);
+    cpu_data[3] = kstack;
+
+    if (next->page_table)
+        paging_switch(next->page_table);
+    else
+        paging_switch(kernel_cr3);
+
+    context_activate(next->context, kstack);
+    // never reached
+}
+
 void process_wait(uint32_t pid)
 {
     while (process_is_alive(pid))
-    {
-        schedule();
-    }
+        yield_to_scheduler();
 }
 
 void process_yield(void)

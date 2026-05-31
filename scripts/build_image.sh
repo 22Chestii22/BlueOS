@@ -42,6 +42,11 @@ if command -v mformat &> /dev/null; then
         echo "  TEST.EXE"
     fi
 
+    if [ -f "$PROJECT_ROOT/programs/count.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/count.exe" ::/SYSTEM/COUNT.EXE
+        echo "  COUNT.EXE"
+    fi
+
     # Copy loadable modules
     echo "Copying modules..."
     if [ -f "$PROJECT_ROOT/modules/demo/demo.sys" ]; then
@@ -54,6 +59,7 @@ if command -v mformat &> /dev/null; then
     {
         echo "SET PATH=C:\\SYSTEM"
         echo "TEST"
+        echo "COUNT"
     } | mcopy -i "$IMAGE" - ::/SYSTEM/AUTOEXEC.BAT
 
     # Create CONFIG.SYS in /SYSTEM/
@@ -90,6 +96,11 @@ else
         echo "  TEST.EXE"
     fi
 
+    if [ -f "$PROJECT_ROOT/programs/count.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/count.exe" "$MOUNT_DIR"/SYSTEM/COUNT.EXE
+        echo "  COUNT.EXE"
+    fi
+
     echo "Copying modules..."
     if [ -f "$PROJECT_ROOT/modules/demo/demo.sys" ]; then
         sudo cp "$PROJECT_ROOT/modules/demo/demo.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/DEMO.SYS
@@ -99,6 +110,7 @@ else
     echo "Creating AUTOEXEC.BAT in /SYSTEM/..."
     echo "SET PATH=C:\\SYSTEM" | sudo tee "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
     echo "TEST" | sudo tee -a "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
+    echo "COUNT" | sudo tee -a "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
 
     echo "Creating CONFIG.SYS in /SYSTEM/..."
     echo "FILES=30" | sudo tee "$MOUNT_DIR"/SYSTEM/CONFIG.SYS > /dev/null

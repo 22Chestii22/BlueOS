@@ -51,5 +51,6 @@ void process_yield(void);
 process_t* process_get_by_pid(uint32_t pid);
 int process_is_alive(uint32_t pid);
 void process_wait(uint32_t pid);
+void yield_to_scheduler(void);
 
 #endif
