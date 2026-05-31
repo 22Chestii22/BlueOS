@@ -12,12 +12,22 @@ static volatile int scheduling_enabled = 0;
 
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
+static void timer_eoi(void)
+{
+    __asm__ volatile("outb %0, %1" : : "a"((uint8_t)0x20), "Nd"((uint16_t)0x20));
+}
+
 void timer_handler_and_schedule(context_t* frame)
 {
-    api->outb(0x20, 0x20);
     tick_count++;
 
-    if (!scheduling_enabled) return;
+    if (!api || !scheduling_enabled)
+    {
+        timer_eoi();
+        return;
+    }
+
+    api->outb(0x20, 0x20);
 
     process_t* current = process_get_current();
     if (!current || current->state != PROCESS_RUNNING) return;

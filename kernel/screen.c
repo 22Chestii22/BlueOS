@@ -8,6 +8,11 @@ static int cursor_y = 0;
 static uint8_t vga_color = 0x07;
 static void (*redirect_callback)(char) = NULL;
 
+static int viewport_x = 0;
+static int viewport_y = 0;
+static int viewport_w = VGA_WIDTH;
+static int viewport_h = VGA_HEIGHT;
+
 enum VGA_COLOR
 {
     COLOR_BLACK = 0,
@@ -33,9 +38,36 @@ static uint16_t make_char(char c, uint8_t color)
     return (uint16_t)c | (uint16_t)color << 8;
 }
 
+void screen_set_viewport(int x, int y, int w, int h)
+{
+    viewport_x = x;
+    viewport_y = y;
+    viewport_w = w;
+    viewport_h = h;
+    if (cursor_x >= viewport_w) cursor_x = 0;
+    if (cursor_y >= viewport_h) cursor_y = 0;
+}
+
 void screen_set_color(uint8_t fg, uint8_t bg)
 {
     vga_color = fg | (bg << 4);
+}
+
+static void screen_scroll(void)
+{
+    for (int y = 0; y < viewport_h - 1; y++)
+        for (int x = 0; x < viewport_w; x++)
+            vga_buffer[(viewport_y + y) * VGA_WIDTH + (viewport_x + x)] =
+                vga_buffer[(viewport_y + y + 1) * VGA_WIDTH + (viewport_x + x)];
+    for (int x = 0; x < viewport_w; x++)
+        vga_buffer[(viewport_y + viewport_h - 1) * VGA_WIDTH + (viewport_x + x)] =
+            make_char(' ', vga_color);
+    cursor_y = viewport_h - 1;
+}
+
+static int abs_pos(int vx, int vy)
+{
+    return (viewport_y + vy) * VGA_WIDTH + (viewport_x + vx);
 }
 
 void screen_putchar(char c)
@@ -61,31 +93,24 @@ void screen_putchar(char c)
         if (cursor_x > 0)
         {
             cursor_x--;
-            vga_buffer[cursor_y * VGA_WIDTH + cursor_x] = make_char(' ', vga_color);
+            vga_buffer[abs_pos(cursor_x, cursor_y)] = make_char(' ', vga_color);
         }
     }
     else
     {
-        vga_buffer[cursor_y * VGA_WIDTH + cursor_x] = make_char(c, vga_color);
+        vga_buffer[abs_pos(cursor_x, cursor_y)] = make_char(c, vga_color);
         cursor_x++;
-        if (cursor_x >= VGA_WIDTH)
+        if (cursor_x >= viewport_w)
         {
             cursor_x = 0;
             cursor_y++;
         }
     }
 
-    if (cursor_y >= VGA_HEIGHT)
-    {
-        for (int y = 0; y < VGA_HEIGHT - 1; y++)
-            for (int x = 0; x < VGA_WIDTH; x++)
-                vga_buffer[y * VGA_WIDTH + x] = vga_buffer[(y + 1) * VGA_WIDTH + x];
-        for (int x = 0; x < VGA_WIDTH; x++)
-            vga_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = make_char(' ', vga_color);
-        cursor_y = VGA_HEIGHT - 1;
-    }
+    if (cursor_y >= viewport_h)
+        screen_scroll();
 
-    int pos = cursor_y * VGA_WIDTH + cursor_x;
+    int pos = abs_pos(cursor_x, cursor_y);
     outb(0x3D4, 0x0F);
     outb(0x3D5, (uint8_t)(pos & 0xFF));
     outb(0x3D4, 0x0E);
@@ -140,6 +165,16 @@ void screen_clear(void)
     for (int y = 0; y < VGA_HEIGHT; y++)
         for (int x = 0; x < VGA_WIDTH; x++)
             vga_buffer[y * VGA_WIDTH + x] = make_char(' ', vga_color);
+    cursor_x = 0;
+    cursor_y = 0;
+}
+
+void screen_clear_viewport(void)
+{
+    for (int y = 0; y < viewport_h; y++)
+        for (int x = 0; x < viewport_w; x++)
+            vga_buffer[(viewport_y + y) * VGA_WIDTH + (viewport_x + x)] =
+                make_char(' ', vga_color);
     cursor_x = 0;
     cursor_y = 0;
 }

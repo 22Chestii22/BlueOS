@@ -36,10 +36,13 @@ KERNEL_SRCS = \
     kernel/cmd.c \
     kernel/module.c \
     kernel/elf_loader.c \
+    kernel/vga.c \
+    kernel/pseudo_gui.c \
     modules/keyb/keyb.c \
     modules/timer/timer.c \
     modules/ata/ata.c \
-    modules/fat/fat.c
+    modules/fat/fat.c \
+    modules/mouse/mouse.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.asm=.o)
 KERNEL_OBJS := $(KERNEL_OBJS:.c=.o)

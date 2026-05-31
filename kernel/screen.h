@@ -29,6 +29,8 @@ void screen_clear(void);
 void screen_get_cursor(int* x, int* y);
 void screen_set_cursor(int x, int y);
 void screen_set_redirect(void (*callback)(char));
+void screen_set_viewport(int x, int y, int w, int h);
+void screen_clear_viewport(void);
 void printf(const char* fmt, ...);
 
 #endif

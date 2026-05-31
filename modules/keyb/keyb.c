@@ -1,6 +1,8 @@
 #include "types.h"
 #include "kernel_api.h"
 
+extern void yield_to_scheduler(void);
+
 #define KEYB_PORT 0x60
 #define KEYB_STATUS 0x64
 
@@ -114,7 +116,10 @@ void keyboard_handler(void)
 char keyb_getchar(void)
 {
     while (key_buffer_head == key_buffer_tail)
+    {
         __asm__ volatile("pause");
+        yield_to_scheduler();
+    }
 
     char c = key_buffer[key_buffer_tail];
     key_buffer_tail = (key_buffer_tail + 1) % 256;

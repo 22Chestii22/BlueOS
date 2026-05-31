@@ -14,11 +14,15 @@
 #include "paging.h"
 #include "pe.h"
 #include "module.h"
+#include "vga.h"
+#include "pseudo_gui.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
 extern void scheduler_init(void);
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
+
+extern void mouse_module_init(kernel_api_t* api);
 
 static void idle_task(void)
 {
@@ -95,10 +99,15 @@ void kernel_main(void* mbd, uint32_t magic)
     paging_init(mem_size);
     gdt_init();
     idt_init();
+
+    vga_init();
+    pseudo_gui_init();
+
     keyb_module_init(&kernel_api);
     timer_module_init(&kernel_api);
     ata_module_init(&kernel_api);
     fat_module_init(&kernel_api);
+    mouse_module_init(&kernel_api);
     load_disk_modules("\\SYSTEM\\DRIVERS");
     process_init();
     syscall_init();
