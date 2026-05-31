@@ -4,3 +4,5 @@
 blueos.iso
 disk.img
 iso/
+.antigravitycli/
+.hive/
