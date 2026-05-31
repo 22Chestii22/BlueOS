@@ -1,6 +1,6 @@
 #include "types.h"
 #include "kernel_api.h"
-#include "vga.h"
+#include "fb.h"
 
 static kernel_api_t* api = NULL;
 
@@ -90,9 +90,9 @@ void mouse_handler(void)
             mouse_y += dy;
 
             if (mouse_x < 0) mouse_x = 0;
-            if ((uint32_t)mouse_x >= (uint32_t)vga_get_mode_width()) mouse_x = vga_get_mode_width() - 1;
+            if ((uint32_t)mouse_x >= fb_info.width) mouse_x = fb_info.width - 1;
             if (mouse_y < 0) mouse_y = 0;
-            if ((uint32_t)mouse_y >= (uint32_t)vga_get_mode_height()) mouse_y = vga_get_mode_height() - 1;
+            if ((uint32_t)mouse_y >= fb_info.height) mouse_y = fb_info.height - 1;
 
             mouse_packet_index = 0;
             break;

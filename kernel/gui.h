@@ -1,0 +1,65 @@
+#ifndef GUI_H
+#define GUI_H
+
+#include "types.h"
+
+#define GUI_MAX_WINDOWS 4
+#define GUI_MAX_BUTTONS 4
+
+#define GUI_MENU_HEIGHT 18
+#define GUI_STATUS_HEIGHT 18
+#define GUI_TITLE_HEIGHT 18
+
+#define GUI_DESKTOP_COL  0x00002060
+
+#define GUI_MAX_MENUS 4
+#define GUI_MAX_MENU_ITEMS 8
+#define GUI_MENU_DROPDOWN_W 120
+
+typedef struct {
+    int x, y, w;
+    char label[12];
+    void (*on_click)(int win_id, int btn_id);
+} gui_button_t;
+
+typedef struct {
+    char label[16];
+    int enabled;
+} gui_menu_item_t;
+
+typedef struct {
+    char label[16];
+    int x;
+    int is_open;
+    int hovered;
+    gui_menu_item_t items[GUI_MAX_MENU_ITEMS];
+    int num_items;
+} gui_menu_t;
+
+typedef struct {
+    char title[24];
+    int x, y, w, h;
+    int visible;
+    char* content;
+    int cw, ch;
+    int cursor_x, cursor_y;
+    gui_button_t buttons[GUI_MAX_BUTTONS];
+    int num_buttons;
+    int dragging;
+    int drag_off_x, drag_off_y;
+    int drag_outline_x, drag_outline_y;
+} gui_window_t;
+
+void gui_init(void);
+int gui_create(const char* title, int x, int y, int w, int h);
+void gui_putchar(int win_id, char c);
+void gui_puts(int win_id, const char* str);
+void gui_clear(int win_id);
+int gui_add_button(int win_id, const char* label, int x, int y, int w, void (*cb)(int, int));
+void gui_render(void);
+void gui_set_active(int win_id);
+void gui_menu_init(void);
+
+extern volatile int cmd_should_exit;
+
+#endif

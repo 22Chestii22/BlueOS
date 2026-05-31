@@ -112,7 +112,11 @@ void timer_init(int frequency)
 void timer_module_init(kernel_api_t* kapi)
 {
     api = kapi;
-    timer_init(100);
     api->irq_install_handler(0, (void*)timer_handler);
-    api->printf("[TIMER] Module loaded\n");
+    api->printf("[TIMER] Module loaded (not yet started)\n");
+}
+
+void timer_start(void)
+{
+    timer_init(100);
 }

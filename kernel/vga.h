@@ -3,7 +3,8 @@
 
 #include "types.h"
 
-#define VGA_MODE_TEXT_80x25  0
+#define VGA_MODE_TEXT_80x25   0
+#define VGA_MODE_FRAMEBUFFER  1
 
 typedef struct {
     uint16_t width;

@@ -1,16 +1,29 @@
 #include "types.h"
 #include "vga.h"
+#include "fb.h"
 
 static vga_mode_t current_mode;
 
 int vga_init(void)
 {
-    current_mode.width = VGA_WIDTH * 8;
-    current_mode.height = VGA_HEIGHT * 16;
-    current_mode.bpp = 4;
-    current_mode.pitch = VGA_WIDTH * 2;
-    current_mode.framebuffer = (uint32_t*)0;
-    current_mode.mode = VGA_MODE_TEXT_80x25;
+    if (fb_info.width > 0 && fb_info.height > 0)
+    {
+        current_mode.width = fb_info.width;
+        current_mode.height = fb_info.height;
+        current_mode.bpp = fb_info.bpp;
+        current_mode.pitch = fb_info.pitch;
+        current_mode.framebuffer = (uint32_t*)fb_info.addr;
+        current_mode.mode = VGA_MODE_FRAMEBUFFER;
+    }
+    else
+    {
+        current_mode.width = 1024;
+        current_mode.height = 768;
+        current_mode.bpp = 32;
+        current_mode.pitch = 1024 * 4;
+        current_mode.framebuffer = 0;
+        current_mode.mode = VGA_MODE_FRAMEBUFFER;
+    }
     return 0;
 }
 

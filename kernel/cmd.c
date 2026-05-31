@@ -10,6 +10,9 @@
 #include "fat.h"
 #include "timer.h"
 #include "paging.h"
+#include "gui.h"
+
+extern int gui_term_win;
 
 #define CMD_LINE_MAX 256
 #define CMD_HISTORY 16
@@ -75,9 +78,9 @@ static void redirect_start(const char* path)
 
 static void redirect_end(void)
 {
-    screen_set_redirect(NULL);
     if (redirect_fd >= 0)
     {
+        screen_set_redirect(NULL);
         vfs_close(redirect_fd);
         redirect_fd = -1;
     }
@@ -930,7 +933,10 @@ static void cmd_path(char* args)
 
 static void cmd_cls(void)
 {
-    screen_clear();
+    if (gui_term_win >= 0)
+        gui_clear(gui_term_win);
+    else
+        screen_clear();
 }
 
 static void cmd_ver(void)
@@ -1225,6 +1231,7 @@ void cmd_run(void)
     int pos = 0;
     char prompt[64];
 
+    timer_start();
     timer_scheduler_enable();
     env_init();
 
@@ -1237,6 +1244,7 @@ void cmd_run(void)
 
     while (1)
     {
+        if (cmd_should_exit) { printf("\n"); process_exit(0); }
         char c = keyb_getchar();
 
         if (c == '\n' || c == '\r')
