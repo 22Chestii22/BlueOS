@@ -15,51 +15,35 @@ PART_OFFSET=1048576  # 2048 sectors * 512 bytes
 
 echo "=== BlueOS Disk Image Builder ==="
 
-# Create empty disk image
+# Create empty disk image (superfloppy — no MBR partition table)
+# Kernel reads LBA 0 directly as FAT32 VBR, so no partition table allowed.
 echo "Creating disk image ($SIZE_MB MB)..."
 dd if=/dev/zero of="$IMAGE" bs=1M count=$SIZE_MB 2>/dev/null
-
-# Create MBR partition table with FAT32 partition
-echo "Creating partition table..."
-fdisk "$IMAGE" > /dev/null 2>&1 <<EOF
-o
-n
-p
-1
-
-
-t
-c
-a
-1
-w
-EOF
 
 # Use mtools (preferred, no sudo needed)
 if command -v mformat &> /dev/null; then
     echo "Using mtools (no root required)..."
-    MTOOLS_OPTS="-i ${IMAGE}@@${PART_OFFSET}"
 
-    # Format as FAT32
-    mformat $MTOOLS_OPTS -F :: 2>/dev/null || \
-        mformat $MTOOLS_OPTS -t 127 -h 64 -s 32 -F ::
+    # Format whole disk as FAT32 (superfloppy — VBR at LBA 0)
+    mformat -i "$IMAGE" -F :: 2>/dev/null || \
+        mformat -i "$IMAGE" -t 127 -h 64 -s 32 -F ::
 
     # Create DOS directory structure (8.3 uppercase)
     echo "Creating DOS directory structure..."
-    mmd $MTOOLS_OPTS ::/SYSTEM
-    mmd $MTOOLS_OPTS ::/PROGRAMS
-    mmd $MTOOLS_OPTS ::/TEMP
-    mmd $MTOOLS_OPTS ::/USERS
-    mmd $MTOOLS_OPTS ::/USERS/DEFAULT
+    mmd -i "$IMAGE" ::/SYSTEM
+    mmd -i "$IMAGE" ::/PROGRAMS
+    mmd -i "$IMAGE" ::/TEMP
+    mmd -i "$IMAGE" ::/USERS
+    mmd -i "$IMAGE" ::/USERS/DEFAULT
 
     # Copy executables
     echo "Copying executables..."
     if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
-        mcopy $MTOOLS_OPTS "$PROJECT_ROOT/programs/edit/edit.exe" ::/PROGRAMS/EDIT.EXE
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/edit/edit.exe" ::/PROGRAMS/EDIT.EXE
         echo "  EDIT.EXE"
     fi
     if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
-        mcopy $MTOOLS_OPTS "$PROJECT_ROOT/programs/test.exe" ::/PROGRAMS/TEST.EXE
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/test.exe" ::/PROGRAMS/TEST.EXE
         echo "  TEST.EXE"
     fi
 
@@ -69,28 +53,21 @@ if command -v mformat &> /dev/null; then
         echo "@ECHO OFF"
         echo "PATH C:\\SYSTEM;C:\\PROGRAMS"
         echo "PROMPT \$P\$G"
-    } | mcopy $MTOOLS_OPTS - ::/AUTOEXEC.BAT
+    } | mcopy -i "$IMAGE" - ::/AUTOEXEC.BAT
 
     # Create CONFIG.SYS
     echo "Creating CONFIG.SYS..."
     {
         echo "FILES=30"
         echo "BUFFERS=20"
-    } | mcopy $MTOOLS_OPTS - ::/CONFIG.SYS
+    } | mcopy -i "$IMAGE" - ::/CONFIG.SYS
 
 # Fallback: use loop+mount (requires sudo)
 else
     echo "mtools not available, using loop+mount (requires sudo)..."
     echo
 
-    LOOP_DEV=$(sudo losetup -fP --show "$IMAGE" 2>/dev/null || echo "")
-    if [ -z "$LOOP_DEV" ]; then
-        LOOP_DEV=$(sudo losetup -f --show "$IMAGE")
-        sudo partprobe "$LOOP_DEV" 2>/dev/null || true
-    fi
-
-    sudo losetup -d "$LOOP_DEV" 2>/dev/null || true
-    LOOP_DEV=$(sudo losetup -f --show -o $PART_OFFSET "$IMAGE")
+    LOOP_DEV=$(sudo losetup -f --show "$IMAGE")
 
     echo "Formatting FAT32..."
     sudo mkfs.fat -F32 -n "BLUEOS" "$LOOP_DEV" > /dev/null 2>&1

@@ -256,6 +256,12 @@ static void cmd_cd(char* args)
         return;
     }
 
+    if (strcmp(args, ".") == 0)
+    {
+        printf("C:%s\n", current_dir);
+        return;
+    }
+
     if (strcmp(args, "..") == 0)
     {
         int len = strlen(current_dir);
