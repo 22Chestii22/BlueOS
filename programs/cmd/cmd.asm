@@ -13,6 +13,7 @@ SYSCALL_READDIR     equ 16
 SYSCALL_PE_CHECK    equ 17
 SYSCALL_EXEC_WAIT   equ 18
 SYSCALL_EXISTS      equ 19
+SYSCALL_GUI_PUTS    equ 22
 
 CMD_LINE_MAX  equ 512
 CUR_DIR_MAX   equ 256
@@ -35,6 +36,7 @@ start:
     mov r10, 700
     mov r8, 400
     syscall
+    mov [rel cmd_win], eax
 
     mov byte [rel current_dir], '\'
     mov byte [rel current_dir + 1], 0
@@ -54,10 +56,12 @@ main_loop:
     jmp main_loop
 
 ; ============================================================
-; print_str: print null-terminated string at rdi
+; print_str: print null-terminated string at rdi to our terminal window
 ; ============================================================
 print_str:
-    mov rax, SYSCALL_PRINT
+    mov rax, SYSCALL_GUI_PUTS
+    mov rsi, rdi
+    mov rdi, [rel cmd_win]
     syscall
     ret
 
@@ -1102,4 +1106,5 @@ temp_buf:      times TEMP_BUF_SIZE db 0
 num_buf:       times 32 db 0
 dir_line_buf:  times 128 db 0
 cd_display:    times CUR_DIR_MAX + 4 db 0
+cmd_win:       dd 0
 echobuf:       db 0, 0

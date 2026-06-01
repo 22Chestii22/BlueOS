@@ -70,15 +70,9 @@ static desktop_icon_t desktop_icons[] = {
 };
 static int num_desktop_icons = 2;
 
-static void gui_terminal_putchar(char c)
-{
-    gui_putchar(gui_terminal_win, c);
-}
-
 int gui_create_terminal(const char* title, int w, int h)
 {
     gui_terminal_win = gui_create(title, w, h);
-    screen_set_redirect(gui_terminal_putchar);
     return gui_terminal_win;
 }
 
@@ -853,9 +847,18 @@ static void gui_ensure_pixels(int win_id)
     w->ph = w->h - GUI_TITLE_HEIGHT - 3;
     if (w->pw < 1) w->pw = 1;
     if (w->ph < 1) w->ph = 1;
-    w->pixels = malloc((uint32_t)(w->pw * w->ph * 4));
+    uint32_t alloc_size = (uint32_t)(w->pw * w->ph * 4);
+    printf("[GUI] ensure_pixels win=%d pw=%d ph=%d alloc=%u\n", win_id, w->pw, w->ph, alloc_size);
+    w->pixels = malloc(alloc_size);
     if (w->pixels)
-        memset(w->pixels, 0xFF, (uint32_t)(w->pw * w->ph * 4));
+    {
+        memset(w->pixels, 0xFF, alloc_size);
+        printf("[GUI] pixel buffer allocated OK at 0x%x\n", (uint32_t)(uint64_t)w->pixels);
+    }
+    else
+    {
+        printf("[GUI] pixel buffer ALLOCATION FAILED!\n");
+    }
 }
 
 void gui_draw_rect(int win_id, int x, int y, int w, int h, uint32_t color)

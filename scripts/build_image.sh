@@ -66,7 +66,6 @@ if command -v mformat &> /dev/null; then
     echo "Creating AUTOEXEC.BAT..."
     {
         echo "SET PATH=C:\\SYSTEM;C:\\SYSTEM\\PROGRAMS"
-        echo "CMD"
     } | mcopy -i "$IMAGE" - ::/SYSTEM/AUTOEXEC.BAT
 
     # Create CONFIG.SYS in /SYSTEM/
@@ -124,7 +123,6 @@ else
 
     echo "Creating AUTOEXEC.BAT in /SYSTEM/..."
     echo "SET PATH=C:\\SYSTEM;C:\\SYSTEM\\PROGRAMS" | sudo tee "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
-    echo "CMD" | sudo tee -a "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
 
     echo "Creating CONFIG.SYS in /SYSTEM/..."
     echo "FILES=30" | sudo tee "$MOUNT_DIR"/SYSTEM/CONFIG.SYS > /dev/null
