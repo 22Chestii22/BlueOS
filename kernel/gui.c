@@ -315,11 +315,13 @@ static void draw_window_content(gui_window_t* w)
             {
                 uint32_t color = w->pixels[row * w->pw + col];
                 if (color != 0xFFFFFFFF)
-                {
                     fb_putpixel((uint32_t)(cx + col), (uint32_t)(cy + row), color);
-                }
             }
         }
+    }
+    else
+    {
+        printf("[DWC] NO PIXELS or zero size\n");
     }
 
     if (w->content)
@@ -1009,7 +1011,6 @@ int gui_create(const char* title, int w, int h)
     win->pixels = malloc(pix_size);
     if (win->pixels)
         memset(win->pixels, 0xFF, pix_size);
-
 
     win->content = malloc(win->cw * win->ch);
     if (win->content)

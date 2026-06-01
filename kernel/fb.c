@@ -26,7 +26,7 @@ void fb_init(uint64_t phys_addr, uint32_t width, uint32_t height, uint32_t pitch
     uint64_t paddr = phys_addr;
 
     for (uint32_t i = 0; i < pages; i++)
-        map_page(vaddr + i * 0x1000, paddr + i * 0x1000, 0x03);
+        map_page(vaddr + i * 0x1000, paddr + i * 0x1000, 0x1B);
 
     mapped_fb = (uint32_t*)phys_addr;
 
@@ -192,8 +192,11 @@ void fb_drawstring(int x, int y, const char* str, uint32_t fg, uint32_t bg)
 void fb_blit(void)
 {
     if (!backbuffer) return;
-    uint32_t size = fb_info.height * fb_info.pitch;
-    memcpy(mapped_fb, backbuffer, size);
+    uint32_t count = (fb_info.height * fb_info.pitch) / 4;
+    volatile uint32_t* dst = (volatile uint32_t*)(unsigned long)fb_info.addr;
+    uint32_t* src = backbuffer;
+    for (uint32_t i = 0; i < count; i++)
+        dst[i] = src[i];
 }
 
 void fb_clear(uint32_t color)
