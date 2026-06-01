@@ -16,6 +16,7 @@
 #include "vga.h"
 #include "fb.h"
 #include "gui.h"
+#include "timer.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -146,6 +147,7 @@ void kernel_main(void* mbd, uint32_t magic)
     syscall_init();
 
     scheduler_init();
+    timer_start();
     pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\SCOUT.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
