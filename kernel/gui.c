@@ -313,7 +313,7 @@ static void draw_mouse_cursor(void)
     }
 }
 
-static void handle_menu_click(int mx, int my)
+static int handle_menu_click(int mx, int my)
 {
     // Check menu bar
     if (my >= 0 && my < GUI_MENU_HEIGHT)
@@ -327,12 +327,12 @@ static void handle_menu_click(int mx, int my)
                 for (int j = 0; j < num_menus; j++)
                     menus[j].is_open = 0;
                 menus[i].is_open = !was;
-                return;
+                return 1;
             }
         }
         for (int i = 0; i < num_menus; i++)
             menus[i].is_open = 0;
-        return;
+        return 1;
     }
 
     // Check open menu dropdowns
@@ -356,13 +356,14 @@ static void handle_menu_click(int mx, int my)
             }
             for (int j = 0; j < num_menus; j++)
                 menus[j].is_open = 0;
-            return;
+            return 1;
         }
     }
 
     // Click outside any menu → close all
     for (int i = 0; i < num_menus; i++)
         menus[i].is_open = 0;
+    return 0;
 }
 
 static void handle_click(void)
@@ -372,7 +373,8 @@ static void handle_click(void)
     if (mx < 0 || (uint32_t)mx >= fb_info.width || my < 0 || (uint32_t)my >= fb_info.height)
         return;
 
-    handle_menu_click(mx, my);
+    if (handle_menu_click(mx, my))
+        return;
 
     // Check close buttons (from top window to bottom for z-order)
     for (int i = num_windows - 1; i >= 0; i--)
@@ -382,6 +384,11 @@ static void handle_click(void)
         if (mx < w->x || mx >= w->x + w->w) continue;
         if (my < w->y || my >= w->y + w->h) continue;
 
+        if (i == gui_term_win)
+        {
+            active_window = i;
+            return;
+        }
         int close_x = w->x + w->w - 17;
         if (my >= w->y + 1 && my < w->y + GUI_TITLE_HEIGHT - 1 &&
             mx >= close_x + 1 && mx < close_x + 15)
@@ -443,13 +450,19 @@ void gui_menu_init(void)
     strcpy(edit->label, "Edit");
     edit->is_open = 0;
     edit->hovered = -1;
-    edit->num_items = 0;
+    strcpy(edit->items[0].label, "Copy");
+    edit->items[0].enabled = 1;
+    strcpy(edit->items[1].label, "Paste");
+    edit->items[1].enabled = 1;
+    edit->num_items = 2;
 
     gui_menu_t* view = &menus[num_menus++];
     strcpy(view->label, "View");
     view->is_open = 0;
     view->hovered = -1;
-    view->num_items = 0;
+    strcpy(view->items[0].label, "Refresh");
+    view->items[0].enabled = 1;
+    view->num_items = 1;
 
     gui_menu_t* help = &menus[num_menus++];
     strcpy(help->label, "Help");
