@@ -1007,6 +1007,15 @@ int gui_create(const char* title, int w, int h)
     if (win->cw < 1) win->cw = 1;
     if (win->ch < 1) win->ch = 1;
 
+    win->pw = win->w - 2;
+    win->ph = win->h - GUI_TITLE_HEIGHT - 3;
+    if (win->pw < 1) win->pw = 1;
+    if (win->ph < 1) win->ph = 1;
+    uint32_t pix_size = (uint32_t)(win->pw * win->ph * 4);
+    win->pixels = malloc(pix_size);
+    if (win->pixels)
+        memset(win->pixels, 0xFF, pix_size);
+
     win->content = malloc(win->cw * win->ch);
     if (win->content)
         memset(win->content, ' ', win->cw * win->ch);
