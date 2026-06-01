@@ -21,6 +21,7 @@ SYSCALL_GUI_GET_EVENT equ 27
 SYSCALL_YIELD       equ 28
 SYSCALL_DRAW_RECT   equ 30
 SYSCALL_DRAW_TEXT   equ 31
+SYSCALL_GUI_RENDER  equ 29
 
 PATH_MAX       equ 256
 TEMP_BUF_SIZE  equ 4096
@@ -574,6 +575,8 @@ refresh:
     jmp .entry_loop
 
 .entry_done:
+    mov rax, SYSCALL_GUI_RENDER
+    syscall
     pop r10
     pop r9
     pop r8
@@ -587,20 +590,15 @@ refresh:
     ret
 
 ; ================ data ================
-align 8
+ICON_SIZE      equ 12
 
 title_str:     db "Scout - File Browser", 0
 title_prefix:  db "Scout - ", 0
 
-align 4
 scout_win:     dd 0
 num_entries:   dd 0
 entry_type:    db 0
 
-align 8
-ICON_SIZE      equ 12
-
-align 8
 event_buf:     times 16 db 0
 win_rect:      times 16 db 0
 entry_name_buf: times 64 db 0

@@ -5,6 +5,7 @@
 #include "fb.h"
 #include "gui.h"
 #include "font.h"
+#include "pe.h"
 
 extern int mouse_get_x(void);
 extern int mouse_get_y(void);
@@ -29,6 +30,8 @@ static int cascade_y = 40;
 static int start_menu_open = 0;
 static int start_menu_hovered = -1;
 static int start_button_down = 0;
+static int start_submenu_open = 0;
+static int start_submenu_hovered = -1;
 
 static const char* start_items[GUI_MAX_START_ITEMS] = {
     "Programs",
@@ -39,6 +42,33 @@ static const char* start_items[GUI_MAX_START_ITEMS] = {
     0, 0, 0
 };
 static int start_num_items = 5;
+
+static const char* submenu_items[GUI_MAX_START_ITEMS] = {
+    "Scout",
+    "CMD",
+    "RENDER",
+    0, 0, 0, 0, 0
+};
+static int submenu_num_items = 3;
+
+static const char* submenu_paths[GUI_MAX_START_ITEMS] = {
+    "\\SYSTEM\\PROGRAMS\\SCOUT.EXE",
+    "\\SYSTEM\\PROGRAMS\\CMD.EXE",
+    "\\SYSTEM\\PROGRAMS\\RENDER.EXE",
+    0, 0, 0, 0, 0
+};
+
+typedef struct {
+    const char* label;
+    const char* path;
+    int x, y, w, h;
+} desktop_icon_t;
+
+static desktop_icon_t desktop_icons[] = {
+    {"Scout", "\\SYSTEM\\PROGRAMS\\SCOUT.EXE", 20, 60, 64, 72},
+    {"CMD",   "\\SYSTEM\\PROGRAMS\\CMD.EXE",   100, 60, 64, 72},
+};
+static int num_desktop_icons = 2;
 
 static void gui_terminal_putchar(char c)
 {
@@ -155,6 +185,53 @@ static void draw_menu_bar(void)
     fb_drawstring(tx, 2, title, COL_BLACK, COL_LIGHT_GRAY);
 }
 
+static void draw_desktop_icons(void)
+{
+    for (int i = 0; i < num_desktop_icons; i++)
+    {
+        desktop_icon_t* di = &desktop_icons[i];
+        fb_fillrect(di->x, di->y, di->w, di->h, GUI_DESKTOP_COL);
+        draw_3d_rect(di->x, di->y, di->w, di->h, 1);
+        int dx = di->x + (di->w - 6 * FONT_WIDTH) / 2;
+        if (dx < di->x) dx = di->x + 1;
+        int dy = di->y + 2;
+        fb_drawstring(dx, dy, di->label, COL_WHITE, GUI_DESKTOP_COL);
+    }
+}
+
+static void draw_start_submenu(void)
+{
+    if (!start_submenu_open) return;
+
+    int tby = fb_info.height - GUI_TASK_HEIGHT;
+    int mh = start_num_items * (FONT_HEIGHT + 4) + 4;
+    int my = tby - mh;
+    int item_h = FONT_HEIGHT + 4;
+    int smh = submenu_num_items * item_h + 4;
+    int smx = 2 + GUI_START_DROPDOWN_W;
+    int smy = my + 2;
+
+    fb_fillrect(smx, smy, GUI_START_DROPDOWN_W, smh, COL_LIGHT_GRAY);
+    draw_win3d_rect(smx, smy, GUI_START_DROPDOWN_W, smh, 1);
+
+    for (int i = 0; i < submenu_num_items; i++)
+    {
+        if (!submenu_items[i]) continue;
+        int iy = smy + 2 + i * item_h;
+        uint32_t bg = COL_WHITE;
+        uint32_t fg = COL_BLACK;
+
+        if (start_submenu_hovered == i)
+        {
+            bg = COL_WIN_BLUE2;
+            fg = COL_WHITE;
+        }
+
+        fb_fillrect(smx + 2, iy, GUI_START_DROPDOWN_W - 4, item_h, bg);
+        fb_drawstring(smx + 6, iy + 2, submenu_items[i], fg, bg);
+    }
+}
+
 static void draw_start_menu(void)
 {
     if (!start_menu_open) return;
@@ -187,6 +264,8 @@ static void draw_start_menu(void)
         if (i == 0)
             fb_drawstring(mx + GUI_START_DROPDOWN_W - 14, iy + 2, ">", fg, bg);
     }
+
+    draw_start_submenu();
 }
 
 static void draw_window_title_bar(gui_window_t* w, int active)
@@ -410,9 +489,52 @@ static void draw_mouse_cursor(void)
     }
 }
 
+static void handle_submenu_click(int mx, int my)
+{
+    int tby = fb_info.height - GUI_TASK_HEIGHT;
+    int item_h = FONT_HEIGHT + 4;
+    int mh = start_num_items * item_h + 4;
+    int my2 = tby - mh;
+    int smh = submenu_num_items * item_h + 4;
+    int smx = 2 + GUI_START_DROPDOWN_W;
+    int smy = my2 + 2;
+
+    if (mx < smx || mx >= smx + GUI_START_DROPDOWN_W ||
+        my < smy || my >= smy + smh)
+        return;
+
+    int idx = (my - smy - 2) / item_h;
+    if (idx < 0 || idx >= submenu_num_items) return;
+    if (!submenu_items[idx]) return;
+
+    start_menu_open = 0;
+    start_submenu_open = 0;
+
+    if (submenu_paths[idx])
+        pe_spawn(submenu_paths[idx]);
+}
+
 static void handle_start_menu_click(int mx, int my)
 {
     if (!start_menu_open) return;
+
+    if (start_submenu_open)
+    {
+        int tby = fb_info.height - GUI_TASK_HEIGHT;
+        int item_h = FONT_HEIGHT + 4;
+        int mh = start_num_items * item_h + 4;
+        int my2 = tby - mh;
+        int smh = submenu_num_items * item_h + 4;
+        int smx = 2 + GUI_START_DROPDOWN_W;
+        int smy = my2 + 2;
+
+        if (mx >= smx && mx < smx + GUI_START_DROPDOWN_W &&
+            my >= smy && my < smy + smh)
+        {
+            handle_submenu_click(mx, my);
+            return;
+        }
+    }
 
     int tby = fb_info.height - GUI_TASK_HEIGHT;
     int item_h = FONT_HEIGHT + 4;
@@ -420,37 +542,43 @@ static void handle_start_menu_click(int mx, int my)
     int smx = 2;
     int smy = tby - mh;
 
-    start_menu_open = 0;
-
     if (mx < smx || mx >= smx + GUI_START_DROPDOWN_W ||
         my < smy || my >= smy + mh)
+    {
+        start_menu_open = 0;
+        start_submenu_open = 0;
         return;
+    }
 
     int idx = (my - smy - 2) / item_h;
     if (idx < 0 || idx >= start_num_items) return;
     if (!start_items[idx]) return;
+
+    if (strcmp(start_items[idx], "Programs") == 0)
+    {
+        start_submenu_open = !start_submenu_open;
+        return;
+    }
+
+    start_submenu_open = 0;
+    start_menu_open = 0;
 
     if (strcmp(start_items[idx], "Exit") == 0)
         cmd_should_exit = 1;
     else if (strcmp(start_items[idx], "About BlueOS") == 0)
     {
         if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nBlueOS x86_64 v1.0\n\n");
+            gui_puts(gui_terminal_win, "\nBlueOS x86_64 v1.0 - Win95-style GUI\n\n");
     }
     else if (strcmp(start_items[idx], "Run...") == 0)
     {
         if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nRun...\n\n");
+            gui_puts(gui_terminal_win, "\nType a program name:\n");
     }
     else if (strcmp(start_items[idx], "Help") == 0)
     {
         if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nBlueOS Help\n  Win9x-style GUI\n\n");
-    }
-    else if (strcmp(start_items[idx], "Programs") == 0)
-    {
-        if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nPrograms menu\n\n");
+            gui_puts(gui_terminal_win, "\nBlueOS Help\n  Start menu for programs\n  Desktop icons\n  Window minimize/close\n\n");
     }
 }
 
@@ -519,7 +647,16 @@ static int handle_taskbar_click(int mx, int my)
     int start_w = GUI_START_BUTTON_W;
     if (mx >= start_x && mx < start_x + start_w)
     {
-        start_menu_open = !start_menu_open;
+        if (start_menu_open)
+        {
+            start_submenu_open = 0;
+            start_menu_open = 0;
+        }
+        else
+        {
+            start_submenu_open = 0;
+            start_menu_open = 1;
+        }
         return 1;
     }
 
@@ -577,8 +714,20 @@ static void handle_click(void)
         int smx = 2;
         int smy = tby - mh;
 
-        if (mx >= smx && mx < smx + GUI_START_DROPDOWN_W &&
-            my >= smy && my < smy + mh)
+        int in_main_menu = (mx >= smx && mx < smx + GUI_START_DROPDOWN_W &&
+                            my >= smy && my < smy + mh);
+
+        int in_submenu = 0;
+        if (start_submenu_open)
+        {
+            int smh2 = submenu_num_items * item_h + 4;
+            int smx2 = 2 + GUI_START_DROPDOWN_W;
+            int smy2 = smy + 2;
+            in_submenu = (mx >= smx2 && mx < smx2 + GUI_START_DROPDOWN_W &&
+                          my >= smy2 && my < smy2 + smh2);
+        }
+
+        if (in_main_menu || in_submenu)
         {
             handle_start_menu_click(mx, my);
             return;
@@ -588,10 +737,12 @@ static void handle_click(void)
         int start_w = GUI_START_BUTTON_W;
         if (my >= tby && mx >= start_x && mx < start_x + start_w)
         {
+            start_submenu_open = 0;
             start_menu_open = 0;
             return;
         }
 
+        start_submenu_open = 0;
         start_menu_open = 0;
     }
 
@@ -600,6 +751,17 @@ static void handle_click(void)
 
     if (handle_taskbar_click(mx, my))
         return;
+
+    for (int i = 0; i < num_desktop_icons; i++)
+    {
+        desktop_icon_t* di = &desktop_icons[i];
+        if (mx >= di->x && mx < di->x + di->w &&
+            my >= di->y && my < di->y + di->h)
+        {
+            pe_spawn(di->path);
+            return;
+        }
+    }
 
     for (int i = num_windows - 1; i >= 0; i--)
     {
@@ -807,6 +969,8 @@ void gui_init(void)
     start_menu_open = 0;
     start_menu_hovered = -1;
     start_button_down = 0;
+    start_submenu_open = 0;
+    start_submenu_hovered = -1;
 }
 
 int gui_create(const char* title, int w, int h)
@@ -1064,6 +1228,7 @@ void gui_render(void)
         int mmx = mouse_get_x();
         int mmy = mouse_get_y();
         start_menu_hovered = -1;
+        start_submenu_hovered = -1;
         int mh = start_num_items * item_h + 4;
         int smy = tby - mh;
         if (mmx >= 2 && mmx < 2 + GUI_START_DROPDOWN_W &&
@@ -1071,11 +1236,36 @@ void gui_render(void)
         {
             int idx = (mmy - smy - 2) / item_h;
             if (idx >= 0 && idx < start_num_items)
+            {
                 start_menu_hovered = idx;
+                if (idx == 0)
+                    start_submenu_open = 1;
+                else
+                    start_submenu_open = 0;
+            }
+        }
+        else
+        {
+            start_submenu_open = 0;
+        }
+
+        if (start_submenu_open)
+        {
+            int smx = 2 + GUI_START_DROPDOWN_W;
+            int smy2 = smy + 2;
+            int smh = submenu_num_items * item_h + 4;
+            if (mmx >= smx && mmx < smx + GUI_START_DROPDOWN_W &&
+                mmy >= smy2 && mmy < smy2 + smh)
+            {
+                int idx = (mmy - smy2 - 2) / item_h;
+                if (idx >= 0 && idx < submenu_num_items)
+                    start_submenu_hovered = idx;
+            }
         }
     }
 
     draw_menu_bar();
+    draw_desktop_icons();
 
     for (int i = 0; i < num_windows; i++)
     {
