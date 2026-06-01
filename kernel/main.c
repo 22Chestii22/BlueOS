@@ -24,24 +24,6 @@ extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
 extern void mouse_module_init(kernel_api_t* api);
 
-static void idle_task(void)
-{
-    for (;;)
-    {
-        __asm__ volatile("hlt");
-        yield_to_scheduler();
-    }
-}
-
-static void gui_render_task(void)
-{
-    for (;;)
-    {
-        gui_render();
-        yield_to_scheduler();
-    }
-}
-
 static uint64_t mb2_get_mem_size(void* mbd)
 {
     if (!mbd) return 0;
@@ -164,9 +146,9 @@ void kernel_main(void* mbd, uint32_t magic)
     syscall_init();
 
     scheduler_init();
-    process_create("gui_render", (uint64_t)gui_render_task, 0);
+    pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\SCOUT.EXE");
-    process_create("idle", (uint64_t)idle_task, 0);
+    pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
 
     process_t* first = process_get_ready();
     if (first)
@@ -175,6 +157,8 @@ void kernel_main(void* mbd, uint32_t magic)
         first->state = PROCESS_RUNNING;
         process_set_current(first);
         gdt_set_kernel_stack(kstack);
+        if (first->page_table)
+            paging_switch(first->page_table);
         context_activate(first->context, kstack);
     }
 

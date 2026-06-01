@@ -739,7 +739,7 @@ static int fat_readdir_impl(void* fs, const char* path, char* entries, int max_e
 done:
     api->free(cluster_data);
     entries[pos] = 0;
-    return count;
+    return pos;
 }
 
 static int fat_mkdir_impl(void* fs, const char* path)

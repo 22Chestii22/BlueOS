@@ -3,6 +3,8 @@
 #include "screen.h"
 #include "mem.h"
 
+extern char __end[];
+
 typedef struct page
 {
     uint32_t present    : 1;
@@ -90,6 +92,24 @@ void paging_init(uint64_t mem_size)
     for (uint32_t i = 0; i < 16; i++)
         frame_bitmap[i / 32] |= (1 << (i % 32));
 
+    uint64_t kernel_start = 0x100000;
+    uint64_t kernel_end = (uint64_t)__end;
+    for (uint64_t addr = kernel_start; addr < kernel_end; addr += 0x1000)
+    {
+        uint32_t f = addr / 0x1000;
+        if (f < total_frames)
+            frame_bitmap[f / 32] |= (1 << (f % 32));
+    }
+
+    uint64_t heap_start = 0x1000000;
+    uint64_t heap_end = heap_start + 0x1000000;
+    for (uint64_t addr = heap_start; addr < heap_end; addr += 0x1000)
+    {
+        uint32_t f = addr / 0x1000;
+        if (f < total_frames)
+            frame_bitmap[f / 32] |= (1 << (f % 32));
+    }
+
     printf("[PAGING] Memory management initialized, %d MB available\n",
            mem_size / (1024 * 1024));
 }
@@ -174,14 +194,63 @@ uint64_t paging_create_pml4(void)
 
     uint64_t cr3;
     __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
-    uint64_t* pml4 = (uint64_t*)cr3;
+    uint64_t* kernel_pml4 = (uint64_t*)cr3;
     uint64_t* new_pml4 = (uint64_t*)page;
 
     for (int i = 0; i < 512; i++)
     {
-        new_pml4[i] = pml4[i];
-        if (new_pml4[i] & 1)
-            new_pml4[i] |= 0x06;
+        if (!(kernel_pml4[i] & 1))
+            continue;
+
+        uint64_t* old_pdpt = (uint64_t*)(kernel_pml4[i] & ~0xFFF);
+        uint64_t new_pdpt_frame = alloc_frame();
+        uint64_t* new_pdpt = (uint64_t*)new_pdpt_frame;
+        memset(new_pdpt, 0, 4096);
+
+        for (int j = 0; j < 512; j++)
+        {
+            if (!(old_pdpt[j] & 1))
+                continue;
+
+            if (old_pdpt[j] & (1 << 7))
+            {
+                new_pdpt[j] = old_pdpt[j] | 0x06;
+            }
+            else
+            {
+                uint64_t* old_pd = (uint64_t*)(old_pdpt[j] & ~0xFFF);
+                uint64_t new_pd_frame = alloc_frame();
+                uint64_t* new_pd = (uint64_t*)new_pd_frame;
+                memset(new_pd, 0, 4096);
+
+                for (int k = 0; k < 512; k++)
+                {
+                    if (!(old_pd[k] & 1))
+                        continue;
+
+                    if (old_pd[k] & (1 << 7))
+                    {
+                        new_pd[k] = old_pd[k] | 0x06;
+                    }
+                    else
+                    {
+                        uint64_t* old_pt = (uint64_t*)(old_pd[k] & ~0xFFF);
+                        uint64_t new_pt_frame = alloc_frame();
+                        uint64_t* new_pt = (uint64_t*)new_pt_frame;
+                        memset(new_pt, 0, 4096);
+
+                        for (int l = 0; l < 512; l++)
+                        {
+                            if (old_pt[l] & 1)
+                                new_pt[l] = old_pt[l] | 0x06;
+                        }
+                        new_pd[k] = new_pt_frame | (old_pd[k] & 0xFFF) | 0x06;
+                    }
+                }
+                new_pdpt[j] = new_pd_frame | (old_pdpt[j] & 0xFFF) | 0x06;
+            }
+        }
+        new_pml4[i] = new_pdpt_frame | (kernel_pml4[i] & 0xFFF) | 0x06;
     }
 
     return page;

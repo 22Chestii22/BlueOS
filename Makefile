@@ -76,11 +76,19 @@ programs/scout/scout.exe: programs/scout/scout.asm scripts/make_pe.py
 	nasm -f bin -o programs/scout/scout.bin programs/scout/scout.asm
 	python3 scripts/make_pe.py programs/scout/scout.bin programs/scout/scout.exe
 
+programs/gui_render/render.exe: programs/gui_render/gui_render.asm scripts/make_pe.py
+	nasm -f bin -o programs/gui_render/render.bin programs/gui_render/gui_render.asm
+	python3 scripts/make_pe.py programs/gui_render/render.bin programs/gui_render/render.exe
+
+programs/idle/idle.exe: programs/idle/idle.asm scripts/make_pe.py
+	nasm -f bin -o programs/idle/idle.bin programs/idle/idle.asm
+	python3 scripts/make_pe.py programs/idle/idle.bin programs/idle/idle.exe
+
 modules/demo/demo.sys: modules/demo/demo.c modules/demo/demo.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/demo/demo.c -o modules/demo/demo.o
 	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/demo/demo.ld -o $@ modules/demo/demo.o
 
-disk.img: programs/cmd/cmd.exe programs/scout/scout.exe modules/demo/demo.sys scripts/build_image.sh
+disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe modules/demo/demo.sys scripts/build_image.sh
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
@@ -93,6 +101,8 @@ clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img
 	rm -f programs/cmd/cmd.bin programs/cmd/cmd.exe
 	rm -f programs/scout/scout.bin programs/scout/scout.exe
+	rm -f programs/gui_render/render.bin programs/gui_render/render.exe
+	rm -f programs/idle/idle.bin programs/idle/idle.exe
 	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
 	rm -f modules/demo/demo.o modules/demo/demo.sys
 	rm -rf iso

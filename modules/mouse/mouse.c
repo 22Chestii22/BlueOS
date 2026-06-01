@@ -53,8 +53,8 @@ static int mouse_write(uint8_t data)
     mouse_wait_write();
     api->outb(MOUSE_PORT_DATA, data);
     uint8_t ack = mouse_read();
-    if (ack != MOUSE_ACK)
-        return -1;
+    if (ack != MOUSE_ACK && ack != 0xFE)
+        api->printf("[MOUSE] write 0x%x: unexpected ACK 0x%x\n", data, ack);
     return 0;
 }
 

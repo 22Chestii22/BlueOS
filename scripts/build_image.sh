@@ -46,6 +46,14 @@ if command -v mformat &> /dev/null; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/scout/scout.exe" ::/SYSTEM/PROGRAMS/SCOUT.EXE
         echo "  SCOUT.EXE"
     fi
+    if [ -f "$PROJECT_ROOT/programs/gui_render/render.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/gui_render/render.exe" ::/SYSTEM/PROGRAMS/RENDER.EXE
+        echo "  RENDER.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/idle/idle.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/idle/idle.exe" ::/SYSTEM/PROGRAMS/IDLE.EXE
+        echo "  IDLE.EXE"
+    fi
 
     # Copy loadable modules
     echo "Copying modules..."
@@ -98,6 +106,14 @@ else
     if [ -f "$PROJECT_ROOT/programs/scout/scout.exe" ]; then
         sudo cp "$PROJECT_ROOT/programs/scout/scout.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/SCOUT.EXE
         echo "  SCOUT.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/gui_render/render.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/gui_render/render.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/RENDER.EXE
+        echo "  RENDER.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/idle/idle.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/idle/idle.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/IDLE.EXE
+        echo "  IDLE.EXE"
     fi
 
     echo "Copying modules..."

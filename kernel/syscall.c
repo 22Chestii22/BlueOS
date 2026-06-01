@@ -162,6 +162,10 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
             yield_to_scheduler();
             return 0;
 
+        case 29:
+            gui_render();
+            return 0;
+
         default:
             printf("[SYSCALL] Unknown syscall %d\n", (int)n);
             return -1;
