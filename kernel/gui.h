@@ -8,10 +8,8 @@
 #define GUI_EVENT_QUEUE_SIZE 16
 
 #define GUI_MENU_HEIGHT 18
-#define GUI_STATUS_HEIGHT 18
 #define GUI_TITLE_HEIGHT 18
-#define GUI_BORDER_WIDTH 2
-#define GUI_TILE_MASTER_RATIO 60
+#define GUI_TASK_HEIGHT 22
 
 #define GUI_DESKTOP_COL  0x00002060
 
@@ -54,6 +52,9 @@ typedef struct {
     int cursor_x, cursor_y;
     gui_button_t buttons[GUI_MAX_BUTTONS];
     int num_buttons;
+    int dragging;
+    int drag_off_x, drag_off_y;
+    int drag_outline_x, drag_outline_y;
     void (*on_content_click)(int win_id, int mx, int my);
     gui_event_t event_queue[GUI_EVENT_QUEUE_SIZE];
     int event_head;

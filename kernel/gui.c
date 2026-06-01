@@ -23,6 +23,9 @@ volatile int cmd_should_exit = 0;
 
 static int gui_terminal_win = -1;
 
+static int cascade_x = 20;
+static int cascade_y = 40;
+
 static void gui_terminal_putchar(char c)
 {
     gui_putchar(gui_terminal_win, c);
@@ -111,21 +114,22 @@ static void draw_menu_bar(void)
     fb_drawstring(tx, 2, title, COL_BLACK, COL_LIGHT_GRAY);
 }
 
-static void draw_status_bar(void)
+static void draw_taskbar(void)
 {
-    fb_fillrect(0, fb_info.height - GUI_STATUS_HEIGHT, fb_info.width, GUI_STATUS_HEIGHT, COL_LIGHT_GRAY);
-    draw_3d_rect(0, fb_info.height - GUI_STATUS_HEIGHT, fb_info.width, GUI_STATUS_HEIGHT, 1);
+    int tby = fb_info.height - GUI_TASK_HEIGHT;
+
+    fb_fillrect(0, tby, fb_info.width, GUI_TASK_HEIGHT, COL_LIGHT_GRAY);
+    fb_draw_hline(tby, 0, fb_info.width - 1, COL_WHITE);
+    fb_draw_vline(0, tby, fb_info.height - 1, COL_WHITE);
+    fb_draw_vline(fb_info.width - 1, tby, fb_info.height - 1, COL_DARK_GRAY);
 
     char buf[64];
     int len = 0;
-    const char* s = " Ready ";
-    for (int i = 0; s[i]; i++) buf[len++] = s[i];
 
     if (mouse_is_present())
     {
         int mx = mouse_get_x();
         int my = mouse_get_y();
-        buf[len++] = ' ';
         buf[len++] = 'M';
         buf[len++] = ':';
         int t = mx;
@@ -139,117 +143,70 @@ static void draw_status_bar(void)
         buf[len++] = '0' + t % 10;
     }
     buf[len] = 0;
+    int sinfo_x = fb_info.width - len * FONT_WIDTH - 6;
+    fb_drawstring(sinfo_x, tby + 4, buf, COL_BLACK, COL_LIGHT_GRAY);
 
-    int sx = fb_info.width - len * FONT_WIDTH - 8;
-    fb_drawstring(sx, fb_info.height - GUI_STATUS_HEIGHT + 2, buf, COL_BLACK, COL_LIGHT_GRAY);
-}
+    int bx = 2;
+    int sinfo_w = (len > 0 ? len * FONT_WIDTH + 8 : 0);
+    int max_buttons_w = fb_info.width - sinfo_w - 6;
 
-static void gui_tile(void)
-{
-    int content_y = GUI_MENU_HEIGHT;
-    int content_h = fb_info.height - GUI_MENU_HEIGHT - GUI_STATUS_HEIGHT;
-    int content_w = fb_info.width;
-
-    int visible_count = 0;
-    for (int i = 0; i < num_windows; i++)
-        if (windows[i].visible) visible_count++;
-
-    if (visible_count == 0) return;
-
-    int master_w = content_w * GUI_TILE_MASTER_RATIO / 100;
-    int stack_w = content_w - master_w;
-    int stack_count = visible_count - 1;
-
-    int idx = 0;
     for (int i = 0; i < num_windows; i++)
     {
         if (!windows[i].visible) continue;
 
-        if (idx == 0)
+        int bw = strlen(windows[i].title) * FONT_WIDTH + 14;
+        if (bw > 180) bw = 180;
+        if (bx + bw > max_buttons_w)
         {
-            windows[i].x = 0;
-            windows[i].y = content_y;
-            windows[i].w = master_w;
-            windows[i].h = content_h;
+            int remaining = max_buttons_w - bx;
+            if (remaining < 30) break;
+            bw = remaining;
+        }
+
+        int is_active = (i == active_window);
+
+        if (is_active)
+        {
+            fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_LIGHT_GRAY);
+            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_DARK_GRAY);
+            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
+            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_WHITE);
+            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
+            fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_LIGHT_GRAY);
         }
         else
         {
-            int stack_h = content_h / stack_count;
-            windows[i].x = master_w;
-            windows[i].y = content_y + (idx - 1) * stack_h;
-            windows[i].w = stack_w;
-            if (idx == stack_count)
-                windows[i].h = content_h - (idx - 1) * stack_h;
-            else
-                windows[i].h = stack_h;
+            fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_LIGHT_GRAY);
+            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_WHITE);
+            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
+            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_DARK_GRAY);
+            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
+            fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_LIGHT_GRAY);
         }
-
-        int new_cw = (windows[i].w - 2 * GUI_BORDER_WIDTH) / FONT_WIDTH;
-        int new_ch = (windows[i].h - 2 * GUI_BORDER_WIDTH - GUI_TITLE_HEIGHT - 1) / FONT_HEIGHT;
-        if (new_cw < 1) new_cw = 1;
-        if (new_ch < 1) new_ch = 1;
-
-        if (new_cw != windows[i].cw || new_ch != windows[i].ch)
-        {
-            char* new_content = malloc(new_cw * new_ch);
-            if (new_content)
-            {
-                __asm__ volatile("cli");
-                memset(new_content, ' ', new_cw * new_ch);
-                if (windows[i].content)
-                {
-                    int copy_w = windows[i].cw < new_cw ? windows[i].cw : new_cw;
-                    int copy_h = windows[i].ch < new_ch ? windows[i].ch : new_ch;
-                    for (int r = 0; r < copy_h; r++)
-                        memcpy(new_content + r * new_cw, windows[i].content + r * windows[i].cw, copy_w);
-                    free(windows[i].content);
-                }
-                windows[i].content = new_content;
-                windows[i].cw = new_cw;
-                windows[i].ch = new_ch;
-                __asm__ volatile("sti");
-            }
-        }
-
-        idx++;
-    }
-}
-
-static void draw_window_border(gui_window_t* w, int active)
-{
-    uint32_t col = active ? COL_WIN_BLUE2 : COL_DARK_GRAY;
-    int x = w->x, y = w->y, ww = w->w, wh = w->h;
-
-    for (int b = 0; b < GUI_BORDER_WIDTH; b++)
-    {
-        fb_draw_hline(y + b, x + b, x + ww - 1 - b, col);
-        fb_draw_hline(y + wh - 1 - b, x + b, x + ww - 1 - b, col);
-        fb_draw_vline(x + b, y + b, y + wh - 1 - b, col);
-        fb_draw_vline(x + ww - 1 - b, y + b, y + wh - 1 - b, col);
+        bx += bw + 2;
     }
 }
 
 static void draw_window_title_bar(gui_window_t* w, int active)
 {
-    int tx = w->x + GUI_BORDER_WIDTH;
-    int ty = w->y + GUI_BORDER_WIDTH;
-    int tw = w->w - 2 * GUI_BORDER_WIDTH;
-
-    uint32_t bg = active ? COL_WIN_BLUE : COL_DARK_GRAY;
+    uint32_t bg = active ? COL_WIN_BLUE2 : COL_DARK_GRAY;
     uint32_t fg = active ? COL_WHITE : COL_LIGHT_GRAY;
 
-    fb_fillrect(tx, ty, tw, GUI_TITLE_HEIGHT, bg);
-    fb_drawstring(tx + 3, ty + 1, w->title, fg, bg);
+    fb_fillrect(w->x, w->y, w->w, GUI_TITLE_HEIGHT, bg);
+    fb_drawstring(w->x + 3, w->y + 2, w->title, fg, bg);
 
-    fb_draw_hline(ty + GUI_TITLE_HEIGHT, tx, tx + tw - 1, COL_DARK_GRAY);
+    int close_x = w->x + w->w - 17;
+    fb_fillrect(close_x + 1, w->y + 2, 14, 14, COL_LIGHT_GRAY);
+    draw_3d_rect(close_x + 1, w->y + 2, 14, 14, 1);
+    fb_drawstring(close_x + 4, w->y + 3, "X", COL_BLACK, COL_LIGHT_GRAY);
 }
 
 static void draw_window_content(gui_window_t* w)
 {
-    int cx = w->x + GUI_BORDER_WIDTH;
-    int cy = w->y + GUI_BORDER_WIDTH + GUI_TITLE_HEIGHT + 1;
-    int cw = w->w - 2 * GUI_BORDER_WIDTH;
-    int ch = w->h - 2 * GUI_BORDER_WIDTH - GUI_TITLE_HEIGHT - 1;
+    int cx = w->x + 1;
+    int cy = w->y + GUI_TITLE_HEIGHT + 1;
+    int cw = w->w - 2;
+    int ch = w->h - GUI_TITLE_HEIGHT - 3;
 
     fb_fillrect(cx, cy, cw, ch, COL_WHITE);
 
@@ -288,22 +245,59 @@ static void draw_window_content(gui_window_t* w)
     }
 }
 
+static void draw_window_outline(gui_window_t* w)
+{
+    int x = w->drag_outline_x;
+    int y = w->drag_outline_y;
+    int ww = w->w;
+    int wh = w->h;
+
+    for (int i = 0; i < wh; i++)
+    {
+        for (int j = 0; j < ww; j++)
+        {
+            if (i == 0 || i == wh - 1 || j == 0 || j == ww - 1)
+            {
+                if ((i + j) & 1)
+                {
+                    int px = x + j;
+                    int py = y + i;
+                    if (px >= 0 && (uint32_t)px < fb_info.width && py >= 0 && (uint32_t)py < fb_info.height)
+                        fb_putpixel(px, py, COL_BLACK);
+                }
+            }
+        }
+    }
+}
+
 static void draw_window(int idx)
 {
     gui_window_t* w = &windows[idx];
     if (!w->visible) return;
 
+    if (w->dragging)
+    {
+        draw_window_outline(w);
+        return;
+    }
+
     int active = (idx == active_window);
 
-    draw_window_border(w, active);
+    fb_fillrect(w->x + 1, w->y + GUI_TITLE_HEIGHT + 1, w->w - 2, w->h - GUI_TITLE_HEIGHT - 2, COL_LIGHT_GRAY);
+
     draw_window_title_bar(w, active);
+
+    draw_3d_rect(w->x, w->y, w->w, w->h, 1);
+
     draw_window_content(w);
+
+    fb_draw_hline(w->y + w->h - 1, w->x, w->x + w->w - 1, COL_DARK_GRAY);
 
     for (int b = 0; b < w->num_buttons; b++)
     {
         gui_button_t* btn = &w->buttons[b];
-        int bx = w->x + GUI_BORDER_WIDTH + btn->x * FONT_WIDTH;
-        int by = w->y + GUI_BORDER_WIDTH + GUI_TITLE_HEIGHT + 1 + btn->y * FONT_HEIGHT;
+        int bx = w->x + 1 + btn->x * FONT_WIDTH;
+        int by = w->y + GUI_TITLE_HEIGHT + 1 + btn->y * FONT_HEIGHT;
         int bw = btn->w * FONT_WIDTH;
         int bh = FONT_HEIGHT + 4;
 
@@ -433,19 +427,35 @@ static int handle_menu_click(int mx, int my)
     return 0;
 }
 
-static int find_window_at(int mx, int my)
+static int handle_taskbar_click(int mx, int my)
 {
-    if (my < GUI_MENU_HEIGHT) return -1;
-    if ((uint32_t)my >= fb_info.height - GUI_STATUS_HEIGHT) return -1;
+    int tby = fb_info.height - GUI_TASK_HEIGHT;
+    if (my < tby || (uint32_t)my >= fb_info.height) return 0;
+
+    int sinfo_w = mouse_is_present() ? 10 * FONT_WIDTH + 8 : 0;
+
+    int bx = 2;
+    int max_w = fb_info.width - sinfo_w - 6;
 
     for (int i = 0; i < num_windows; i++)
     {
         if (!windows[i].visible) continue;
-        if (mx >= windows[i].x && mx < windows[i].x + windows[i].w &&
-            my >= windows[i].y && my < windows[i].y + windows[i].h)
-            return i;
+        int bw = strlen(windows[i].title) * FONT_WIDTH + 14;
+        if (bw > 180) bw = 180;
+        if (bx + bw > max_w)
+        {
+            int remaining = max_w - bx;
+            if (remaining < 30) break;
+            bw = remaining;
+        }
+        if (mx >= bx && mx < bx + bw)
+        {
+            active_window = i;
+            return 1;
+        }
+        bx += bw + 2;
     }
-    return -1;
+    return 0;
 }
 
 static void handle_click(void)
@@ -458,52 +468,71 @@ static void handle_click(void)
     if (handle_menu_click(mx, my))
         return;
 
-    int idx = find_window_at(mx, my);
-    if (idx < 0) return;
+    if (handle_taskbar_click(mx, my))
+        return;
 
-    if (idx > 0)
+    for (int i = num_windows - 1; i >= 0; i--)
     {
-        gui_window_t tmp = windows[0];
-        windows[0] = windows[idx];
-        windows[idx] = tmp;
-        idx = 0;
-    }
+        gui_window_t* w = &windows[i];
+        if (!w->visible) continue;
+        if (mx < w->x || mx >= w->x + w->w) continue;
+        if (my < w->y || my >= w->y + w->h) continue;
 
-    active_window = idx;
-    gui_window_t* w = &windows[idx];
-
-    int cx = mx - (w->x + GUI_BORDER_WIDTH);
-    int cy = my - (w->y + GUI_BORDER_WIDTH + GUI_TITLE_HEIGHT + 1);
-    if (cy < 0) return;
-
-    for (int b = 0; b < w->num_buttons; b++)
-    {
-        gui_button_t* btn = &w->buttons[b];
-        int bx = btn->x * FONT_WIDTH;
-        int by = btn->y * FONT_HEIGHT;
-        if (cx >= bx && cx < bx + btn->w * FONT_WIDTH &&
-            cy >= by && cy < by + FONT_HEIGHT + 4)
+        int close_x = w->x + w->w - 17;
+        if (my >= w->y + 1 && my < w->y + GUI_TITLE_HEIGHT - 1 &&
+            mx >= close_x + 1 && mx < close_x + 15)
         {
-            if (btn->on_click) btn->on_click(idx, b);
+            w->visible = 0;
+            if (active_window == i)
+                active_window = -1;
             return;
         }
-    }
 
-    if (w->on_content_click)
-    {
-        w->on_content_click(idx, mx, my);
+        if (my >= w->y && my < w->y + GUI_TITLE_HEIGHT)
+        {
+            active_window = i;
+            w->dragging = 1;
+            w->drag_off_x = mx - w->x;
+            w->drag_off_y = my - w->y;
+            w->drag_outline_x = w->x;
+            w->drag_outline_y = w->y;
+            return;
+        }
+
+        active_window = i;
+
+        int cx = mx - (w->x + 1);
+        int cy = my - (w->y + GUI_TITLE_HEIGHT + 1);
+        for (int b = 0; b < w->num_buttons; b++)
+        {
+            gui_button_t* btn = &w->buttons[b];
+            int bx = btn->x * FONT_WIDTH;
+            int by = btn->y * FONT_HEIGHT;
+            if (cx >= bx && cx < bx + btn->w * FONT_WIDTH &&
+                cy >= by && cy < by + FONT_HEIGHT + 4)
+            {
+                if (btn->on_click) btn->on_click(i, b);
+                return;
+            }
+        }
+        if (w->on_content_click)
+        {
+            w->on_content_click(i, mx, my);
+            return;
+        }
+        {
+            int nx = w->event_tail + 1;
+            if (nx == GUI_EVENT_QUEUE_SIZE) nx = 0;
+            if (nx != w->event_head)
+            {
+                w->event_queue[w->event_tail].type = 1;
+                w->event_queue[w->event_tail].mx = mx;
+                w->event_queue[w->event_tail].my = my;
+                w->event_queue[w->event_tail].buttons = mouse_get_buttons();
+                w->event_tail = nx;
+            }
+        }
         return;
-    }
-
-    int nx = w->event_tail + 1;
-    if (nx == GUI_EVENT_QUEUE_SIZE) nx = 0;
-    if (nx != w->event_head)
-    {
-        w->event_queue[w->event_tail].type = 1;
-        w->event_queue[w->event_tail].mx = mx;
-        w->event_queue[w->event_tail].my = my;
-        w->event_queue[w->event_tail].buttons = mouse_get_buttons();
-        w->event_tail = nx;
     }
 }
 
@@ -556,6 +585,8 @@ void gui_init(void)
     prev_buttons = 0;
     cmd_should_exit = 0;
     gui_menu_init();
+    cascade_x = 20;
+    cascade_y = 40;
 }
 
 int gui_create(const char* title, int w, int h)
@@ -570,16 +601,17 @@ int gui_create(const char* title, int w, int h)
     memcpy(win->title, title, slen);
     win->title[slen] = 0;
 
-    win->x = 0;
-    win->y = 0;
+    win->x = cascade_x;
+    win->y = cascade_y;
     win->w = w;
     win->h = h;
     win->visible = 1;
-    win->cw = (w - 2 * GUI_BORDER_WIDTH) / FONT_WIDTH;
-    win->ch = (h - 2 * GUI_BORDER_WIDTH - GUI_TITLE_HEIGHT - 1) / FONT_HEIGHT;
+    win->cw = (w - 2) / FONT_WIDTH;
+    win->ch = (h - GUI_TITLE_HEIGHT - 3) / FONT_HEIGHT;
     win->cursor_x = 0;
     win->cursor_y = 0;
     win->num_buttons = 0;
+    win->dragging = 0;
     win->event_head = 0;
     win->event_tail = 0;
 
@@ -591,6 +623,13 @@ int gui_create(const char* title, int w, int h)
         memset(win->content, ' ', win->cw * win->ch);
 
     active_window = idx;
+
+    cascade_x += 20;
+    cascade_y += 20;
+    if ((uint32_t)(cascade_x + w) > fb_info.width - 40) cascade_x = 20;
+    if ((uint32_t)(cascade_y + h) > fb_info.height - GUI_MENU_HEIGHT - GUI_TASK_HEIGHT - 40)
+        cascade_y = 40;
+
     return idx;
 }
 
@@ -684,8 +723,6 @@ void gui_render(void)
 
     fb_clear(GUI_DESKTOP_COL);
 
-    gui_tile();
-
     {
         int mmx = mouse_get_x();
         int mmy = mouse_get_y();
@@ -706,15 +743,36 @@ void gui_render(void)
 
     for (int i = 0; i < num_windows; i++)
     {
+        if (windows[i].dragging)
+        {
+            int mx = mouse_get_x();
+            int my = mouse_get_y();
+            windows[i].drag_outline_x = mx - windows[i].drag_off_x;
+            windows[i].drag_outline_y = my - windows[i].drag_off_y;
+        }
+    }
+
+    for (int i = 0; i < num_windows; i++)
+    {
         if (i != active_window && windows[i].visible)
             draw_window(i);
     }
     if (active_window >= 0 && windows[active_window].visible)
         draw_window(active_window);
 
-    draw_status_bar();
+    draw_taskbar();
 
     uint8_t buttons = mouse_get_buttons();
+
+    for (int i = 0; i < num_windows; i++)
+    {
+        if (windows[i].dragging && !(buttons & 1))
+        {
+            windows[i].x = windows[i].drag_outline_x;
+            windows[i].y = windows[i].drag_outline_y;
+            windows[i].dragging = 0;
+        }
+    }
 
     if ((buttons & 1) && !(prev_buttons & 1))
         handle_click();
@@ -749,8 +807,8 @@ void gui_set_title(int win_id, const char* title)
 void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h)
 {
     if (win_id < 0 || win_id >= num_windows) return;
-    if (x) *x = windows[win_id].x + GUI_BORDER_WIDTH;
-    if (y) *y = windows[win_id].y + GUI_BORDER_WIDTH;
+    if (x) *x = windows[win_id].x;
+    if (y) *y = windows[win_id].y;
     if (w) *w = windows[win_id].w;
     if (h) *h = windows[win_id].h;
 }
