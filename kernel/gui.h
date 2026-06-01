@@ -3,19 +3,23 @@
 
 #include "types.h"
 
-#define GUI_MAX_WINDOWS 4
-#define GUI_MAX_BUTTONS 4
+#define GUI_MAX_WINDOWS 8
+#define GUI_MAX_BUTTONS 8
 #define GUI_EVENT_QUEUE_SIZE 16
 
 #define GUI_MENU_HEIGHT 18
 #define GUI_TITLE_HEIGHT 18
 #define GUI_TASK_HEIGHT 22
 
-#define GUI_DESKTOP_COL  0x00002060
+#define GUI_DESKTOP_COL  0x008080
 
 #define GUI_MAX_MENUS 4
 #define GUI_MAX_MENU_ITEMS 8
 #define GUI_MENU_DROPDOWN_W 120
+
+#define GUI_START_BUTTON_W 60
+#define GUI_START_DROPDOWN_W 150
+#define GUI_MAX_START_ITEMS 8
 
 typedef struct {
     int type;
@@ -52,6 +56,9 @@ typedef struct {
     int cursor_x, cursor_y;
     gui_button_t buttons[GUI_MAX_BUTTONS];
     int num_buttons;
+    int minimized;
+    uint32_t* pixels;
+    int pw, ph;
     int dragging;
     int drag_off_x, drag_off_y;
     int drag_outline_x, drag_outline_y;
@@ -77,6 +84,8 @@ int gui_create_terminal(const char* title, int w, int h);
 int gui_get_terminal(void);
 void gui_clear_terminal(void);
 int gui_get_event(int win_id, gui_event_t* ev);
+void gui_draw_rect(int win_id, int x, int y, int w, int h, uint32_t color);
+void gui_draw_text(int win_id, int x, int y, const char* str, uint32_t fg, uint32_t bg);
 
 extern volatile int cmd_should_exit;
 

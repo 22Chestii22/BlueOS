@@ -19,12 +19,28 @@ SYSCALL_GUI_SET_TITLE equ 25
 SYSCALL_GUI_GET_RECT equ 26
 SYSCALL_GUI_GET_EVENT equ 27
 SYSCALL_YIELD       equ 28
+SYSCALL_DRAW_RECT   equ 30
+SYSCALL_DRAW_TEXT   equ 31
 
 PATH_MAX       equ 256
 TEMP_BUF_SIZE  equ 4096
 FONT_HEIGHT    equ 16
+FONT_WIDTH     equ 8
 GUI_TITLE_HEIGHT equ 18
+ROW_HEIGHT     equ 20
 MAX_ENTRIES    equ 256
+
+COL_WIN_BLUE2   equ 0x000000AA
+COL_WHITE       equ 0x00FFFFFF
+COL_BLACK       equ 0x00000000
+COL_LIGHT_GRAY  equ 0x00C0C0C0
+COL_DARK_GRAY   equ 0x00808080
+COL_FOLDER      equ 0x00408040
+COL_EXE_GREEN   equ 0x0000AA00
+COL_FILE_GRAY   equ 0x00A0A0A0
+COL_HEADER_BG   equ 0x00000080
+COL_EVEN_ROW    equ 0x00F0F0F0
+COL_SELECTED    equ 0x003366FF
 
 section .text
 
@@ -81,15 +97,14 @@ start:
     sub eax, GUI_TITLE_HEIGHT + 1
     js .yield
 
+    sub eax, 22
+    js .yield
+
     xor edx, edx
-    mov ecx, FONT_HEIGHT
+    mov ecx, ROW_HEIGHT
     div ecx
     mov r14d, eax
 
-    cmp r14d, 2
-    jb .yield
-
-    sub r14d, 2
     cmp r14d, [rel num_entries]
     jae .yield
 
@@ -197,18 +212,6 @@ start:
 .exe_add_name:
     lea rsi, [rel entry_name_buf]
     call strcpy
-    mov edi, [rel scout_win]
-    lea rsi, [rel launch_msg]
-    mov rax, SYSCALL_GUI_PUTS
-    syscall
-    mov edi, [rel scout_win]
-    lea rsi, [rel entry_name_buf]
-    mov rax, SYSCALL_GUI_PUTS
-    syscall
-    mov edi, [rel scout_win]
-    lea rsi, [rel dots_nl]
-    mov rax, SYSCALL_GUI_PUTS
-    syscall
     lea rdi, [rel new_path]
     mov rax, SYSCALL_EXEC_WAIT
     syscall
@@ -381,42 +384,57 @@ load_dir:
     pop rax
     ret
 
+; ================ graphical refresh ================
+
 refresh:
     push rax
     push rdi
     push rsi
+    push rdx
+    push rcx
     push rbx
     push r15
-    push rcx
+    push r8
+    push r9
+    push r10
 
     mov edi, [rel scout_win]
     mov rax, SYSCALL_GUI_CLEAR
     syscall
 
+    ; Draw header bar
     mov edi, [rel scout_win]
-    lea rsi, [rel path_prefix]
-    mov rax, SYSCALL_GUI_PUTS
+    xor esi, esi
+    xor edx, edx
+    mov r10d, 638
+    mov r8d, 20
+    mov r9d, COL_HEADER_BG
+    mov rax, SYSCALL_DRAW_RECT
     syscall
 
+    ; Draw path text in header
     lea rsi, [rel current_dir]
     cmp byte [rsi], '\'
     jne .print_path
     inc rsi
 .print_path:
     mov edi, [rel scout_win]
-    mov rax, SYSCALL_GUI_PUTS
+    mov esi, 5
+    mov edx, 2
+    lea rcx, [rel current_dir]
+    ; Check if current_dir starts with \
+    lea r10, [rel current_dir]
+    cmp byte [r10], '\'
+    jne .path_go
+    lea r10, [rel current_dir]
+    inc r10
+.path_go:
+    mov r8d, COL_WHITE
+    mov r9d, COL_HEADER_BG
+    mov rax, SYSCALL_DRAW_TEXT
     syscall
 
-    mov edi, [rel scout_win]
-    mov esi, 10
-    mov rax, SYSCALL_GUI_PUTCHAR
-    syscall
-
-    mov edi, [rel scout_win]
-    mov esi, 10
-    mov rax, SYSCALL_GUI_PUTCHAR
-    syscall
-
+    ; Update title
     lea rdi, [rel title_buf]
     lea rsi, [rel title_prefix]
     call strcpy
@@ -430,101 +448,113 @@ refresh:
     inc rsi
 .title_do:
     call strcpy
-
     mov edi, [rel scout_win]
     lea rsi, [rel title_buf]
     mov rax, SYSCALL_GUI_SET_TITLE
     syscall
 
+    ; Draw entries
     lea r15, [rel entries_buf]
     xor ebx, ebx
 
 .entry_loop:
     cmp ebx, [rel num_entries]
-    jae .refresh_done
+    jae .entry_done
     cmp byte [r15], 0
-    je .refresh_done
+    je .entry_done
 
+    mov eax, ebx
+    mov ecx, ROW_HEIGHT
+    mul ecx
+    add eax, 22
+    mov r14d, eax  ; r14 = row_y (pixel y of this entry)
+
+    ; Draw alternating row background
+    test bl, 1
+    jnz .skip_row_bg
+    mov edi, [rel scout_win]
+    mov esi, 2
+    mov edx, r14d
+    mov r10d, 636
+    mov r8d, ROW_HEIGHT
+    mov r9d, COL_EVEN_ROW
+    mov rax, SYSCALL_DRAW_RECT
+    syscall
+.skip_row_bg:
+
+    ; Draw icon
     mov al, [r15]
     cmp al, 'D'
-    je .is_dir
+    je .icon_dir
+    cmp al, 'F'
+    je .icon_file
 
-    lea rdi, [rel line_buf]
-    xor ecx, ecx
-    lea rsi, [r15 + 2]
-.copy_name:
-    mov al, [rsi]
-    test al, al
-    jz .name_done
-    cmp cl, 62
-    jae .name_done
-    mov [rdi + rcx], al
-    inc rsi
-    inc ecx
-    jmp .copy_name
-.name_done:
-.pad_loop:
-    cmp cl, 50
-    jae .pad_done
-    mov byte [rdi + rcx], ' '
-    inc ecx
-    jmp .pad_loop
-.pad_done:
+    ; Determine if file is .exe
+    push r15
+    push rbx
+    mov rdi, r15
+    add rdi, 2
+    call has_exe_ext
+    pop rbx
+    pop r15
+    test rax, rax
+    jnz .icon_exe
+    jmp .icon_file
 
+.icon_dir:
+    mov r9d, COL_FOLDER
+    jmp .draw_icon
+.icon_exe:
+    mov r9d, COL_EXE_GREEN
+    jmp .draw_icon
+.icon_file:
+    mov r9d, COL_FILE_GRAY
+.draw_icon:
+    push r15
+    push rbx
+    mov edi, [rel scout_win]
+    mov esi, 4
+    lea edx, [r14d + 4]
+    mov r10d, ICON_SIZE
+    mov r8d, ICON_SIZE
+    mov rax, SYSCALL_DRAW_RECT
+    syscall
+    pop rbx
+    pop r15
+
+    ; Draw name text
+    lea r10, [r15 + 2]
+    push r15
+    push rbx
+    mov edi, [rel scout_win]
+    mov esi, 22
+    lea edx, [r14d + 2]
+    mov r8d, COL_BLACK
+    mov r9d, COL_WHITE
+    mov rax, SYSCALL_DRAW_TEXT
+    syscall
+    pop rbx
+    pop r15
+
+    ; Draw size text
+    push r15
+    push rbx
     lea rsi, [r15 + 2]
-    push rcx
     call strlen
-    pop rcx
-    add rsi, rax
-    inc rsi
-.size_copy:
-    mov al, [rsi]
-    test al, al
-    jz .size_done
-    cmp cl, 126
-    jae .size_done
-    mov [rdi + rcx], al
-    inc rsi
-    inc ecx
-    jmp .size_copy
-.size_done:
-    mov byte [rdi + rcx], 0
-    jmp .print_line
-
-.is_dir:
-    lea rdi, [rel line_buf]
-    mov byte [rdi], '['
-    mov ecx, 1
-    lea rsi, [r15 + 2]
-.copy_dir:
-    mov al, [rsi]
-    test al, al
-    jz .dir_done
-    cmp cl, 62
-    jae .dir_done
-    mov [rdi + rcx], al
-    inc rsi
-    inc ecx
-    jmp .copy_dir
-.dir_done:
-    cmp cl, 63
-    jae .close_b
-    mov byte [rdi + rcx], ']'
-    inc ecx
-.close_b:
-    mov byte [rdi + rcx], 0
-
-.print_line:
+    lea r10, [r15 + 2]
+    add r10, rax
+    inc r10
     mov edi, [rel scout_win]
-    lea rsi, [rel line_buf]
-    mov rax, SYSCALL_GUI_PUTS
+    mov esi, 450
+    lea edx, [r14d + 2]
+    mov r8d, COL_DARK_GRAY
+    mov r9d, COL_WHITE
+    mov rax, SYSCALL_DRAW_TEXT
     syscall
+    pop rbx
+    pop r15
 
-    mov edi, [rel scout_win]
-    mov esi, 10
-    mov rax, SYSCALL_GUI_PUTCHAR
-    syscall
-
+    ; Advance to next entry
     inc r15
     inc r15
     mov rdi, r15
@@ -543,10 +573,14 @@ refresh:
     inc ebx
     jmp .entry_loop
 
-.refresh_done:
-    pop rcx
+.entry_done:
+    pop r10
+    pop r9
+    pop r8
     pop r15
     pop rbx
+    pop rcx
+    pop rdx
     pop rsi
     pop rdi
     pop rax
@@ -557,14 +591,14 @@ align 8
 
 title_str:     db "Scout - File Browser", 0
 title_prefix:  db "Scout - ", 0
-path_prefix:   db "\", 0
-launch_msg:    db 13, 10, "Launching ", 0
-dots_nl:       db "...", 13, 10, 0
 
 align 4
 scout_win:     dd 0
 num_entries:   dd 0
 entry_type:    db 0
+
+align 8
+ICON_SIZE      equ 12
 
 align 8
 event_buf:     times 16 db 0
@@ -573,5 +607,4 @@ entry_name_buf: times 64 db 0
 current_dir:   times PATH_MAX db 0
 new_path:      times PATH_MAX db 0
 entries_buf:   times TEMP_BUF_SIZE db 0
-line_buf:      times 128 db 0
 title_buf:     times 64 db 0

@@ -18,10 +18,11 @@ int syscall_exec(uint64_t entry, const char* name)
 }
 
 uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
-                                uint64_t a4, uint64_t a5)
+                                uint64_t a4, uint64_t a5, uint64_t a6)
 {
     UNUSED(a4);
     UNUSED(a5);
+    UNUSED(a6);
 
     switch (n)
     {
@@ -164,6 +165,14 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
 
         case 29:
             gui_render();
+            return 0;
+
+        case 30:
+            gui_draw_rect((int)a1, (int)a2, (int)a3, (int)a4, (int)a5, (uint32_t)a6);
+            return 0;
+
+        case 31:
+            gui_draw_text((int)a1, (int)a2, (int)a3, (const char*)a4, (uint32_t)a5, (uint32_t)a6);
             return 0;
 
         default:

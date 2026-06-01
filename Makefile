@@ -92,10 +92,10 @@ disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/rend
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
-	$(QEMU) -cdrom blueos.iso -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio -vga std -boot order=d
+	$(QEMU) -cdrom blueos.iso -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio -vga std -boot order=d -usb -device usb-tablet
 
 debug: blueos.iso disk.img
-	$(QEMU) -cdrom blueos.iso -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio -vga std -boot order=d -d cpu_reset
+	$(QEMU) -cdrom blueos.iso -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio -vga std -boot order=d -usb -device usb-tablet -d cpu_reset
 
 clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img

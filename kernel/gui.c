@@ -26,6 +26,20 @@ static int gui_terminal_win = -1;
 static int cascade_x = 20;
 static int cascade_y = 40;
 
+static int start_menu_open = 0;
+static int start_menu_hovered = -1;
+static int start_button_down = 0;
+
+static const char* start_items[GUI_MAX_START_ITEMS] = {
+    "Programs",
+    "Run...",
+    "Help",
+    "About BlueOS",
+    "Exit",
+    0, 0, 0
+};
+static int start_num_items = 5;
+
 static void gui_terminal_putchar(char c)
 {
     gui_putchar(gui_terminal_win, c);
@@ -57,6 +71,33 @@ static void draw_3d_rect(int x, int y, int w, int h, int raised)
     fb_draw_vline(x, y, y + h - 1, light);
     fb_draw_hline(y + h - 1, x, x + w - 1, dark);
     fb_draw_vline(x + w - 1, y, y + h - 1, dark);
+}
+
+static void draw_win3d_rect(int x, int y, int w, int h, int raised)
+{
+    uint32_t hilite = raised ? COL_WHITE : FB_RGB(64,64,64);
+    uint32_t light = raised ? COL_LIGHT_GRAY : COL_DARK_GRAY;
+    uint32_t dark = raised ? COL_DARK_GRAY : COL_LIGHT_GRAY;
+    uint32_t shadow = raised ? FB_RGB(64,64,64) : COL_WHITE;
+    fb_draw_hline(y, x, x + w - 1, hilite);
+    fb_draw_vline(x, y, y + h - 1, hilite);
+    fb_draw_hline(y + 1, x + 1, x + w - 2, light);
+    fb_draw_vline(x + 1, y + 1, y + h - 2, light);
+    fb_draw_hline(y + h - 1, x, x + w - 1, shadow);
+    fb_draw_vline(x + w - 1, y, y + h - 1, shadow);
+    fb_draw_hline(y + h - 2, x + 1, x + w - 2, dark);
+    fb_draw_vline(x + w - 2, y + 1, y + h - 2, dark);
+}
+
+static void bring_to_front(int idx)
+{
+    if (idx < 0 || idx >= num_windows) return;
+    if (idx == num_windows - 1) return;
+    gui_window_t tmp = windows[idx];
+    for (int i = idx; i < num_windows - 1; i++)
+        windows[i] = windows[i + 1];
+    windows[num_windows - 1] = tmp;
+    active_window = num_windows - 1;
 }
 
 static void draw_menu_dropdown(gui_menu_t* menu)
@@ -114,76 +155,37 @@ static void draw_menu_bar(void)
     fb_drawstring(tx, 2, title, COL_BLACK, COL_LIGHT_GRAY);
 }
 
-static void draw_taskbar(void)
+static void draw_start_menu(void)
 {
+    if (!start_menu_open) return;
+
     int tby = fb_info.height - GUI_TASK_HEIGHT;
+    int item_h = FONT_HEIGHT + 4;
+    int mh = start_num_items * item_h + 4;
+    int mx = 2;
+    int my = tby - mh;
 
-    fb_fillrect(0, tby, fb_info.width, GUI_TASK_HEIGHT, COL_LIGHT_GRAY);
-    fb_draw_hline(tby, 0, fb_info.width - 1, COL_WHITE);
-    fb_draw_vline(0, tby, fb_info.height - 1, COL_WHITE);
-    fb_draw_vline(fb_info.width - 1, tby, fb_info.height - 1, COL_DARK_GRAY);
+    fb_fillrect(mx, my, GUI_START_DROPDOWN_W, mh, COL_LIGHT_GRAY);
+    draw_win3d_rect(mx, my, GUI_START_DROPDOWN_W, mh, 1);
 
-    char buf[64];
-    int len = 0;
-
-    if (mouse_is_present())
+    for (int i = 0; i < start_num_items; i++)
     {
-        int mx = mouse_get_x();
-        int my = mouse_get_y();
-        buf[len++] = 'M';
-        buf[len++] = ':';
-        int t = mx;
-        if (t >= 100) { buf[len++] = '0' + t / 100; t %= 100; }
-        buf[len++] = '0' + t / 10;
-        buf[len++] = '0' + t % 10;
-        buf[len++] = ',';
-        t = my;
-        if (t >= 100) { buf[len++] = '0' + t / 100; t %= 100; }
-        buf[len++] = '0' + t / 10;
-        buf[len++] = '0' + t % 10;
-    }
-    buf[len] = 0;
-    int sinfo_x = fb_info.width - len * FONT_WIDTH - 6;
-    fb_drawstring(sinfo_x, tby + 4, buf, COL_BLACK, COL_LIGHT_GRAY);
+        if (!start_items[i]) continue;
+        int iy = my + 2 + i * item_h;
+        uint32_t bg = COL_WHITE;
+        uint32_t fg = COL_BLACK;
 
-    int bx = 2;
-    int sinfo_w = (len > 0 ? len * FONT_WIDTH + 8 : 0);
-    int max_buttons_w = fb_info.width - sinfo_w - 6;
-
-    for (int i = 0; i < num_windows; i++)
-    {
-        if (!windows[i].visible) continue;
-
-        int bw = strlen(windows[i].title) * FONT_WIDTH + 14;
-        if (bw > 180) bw = 180;
-        if (bx + bw > max_buttons_w)
+        if (start_menu_hovered == i)
         {
-            int remaining = max_buttons_w - bx;
-            if (remaining < 30) break;
-            bw = remaining;
+            bg = COL_WIN_BLUE2;
+            fg = COL_WHITE;
         }
 
-        int is_active = (i == active_window);
+        fb_fillrect(mx + 2, iy, GUI_START_DROPDOWN_W - 4, item_h, bg);
+        fb_drawstring(mx + 6, iy + 2, start_items[i], fg, bg);
 
-        if (is_active)
-        {
-            fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_LIGHT_GRAY);
-            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_DARK_GRAY);
-            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
-            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_WHITE);
-            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
-            fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_LIGHT_GRAY);
-        }
-        else
-        {
-            fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_LIGHT_GRAY);
-            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_WHITE);
-            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
-            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_DARK_GRAY);
-            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
-            fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_LIGHT_GRAY);
-        }
-        bx += bw + 2;
+        if (i == 0)
+            fb_drawstring(mx + GUI_START_DROPDOWN_W - 14, iy + 2, ">", fg, bg);
     }
 }
 
@@ -193,12 +195,34 @@ static void draw_window_title_bar(gui_window_t* w, int active)
     uint32_t fg = active ? COL_WHITE : COL_LIGHT_GRAY;
 
     fb_fillrect(w->x, w->y, w->w, GUI_TITLE_HEIGHT, bg);
+
+    if (active)
+    {
+        fb_draw_hline(w->y, w->x, w->x + w->w - 1, FB_RGB(0x66,0x88,0xFF));
+        fb_draw_hline(w->y + GUI_TITLE_HEIGHT - 1, w->x, w->x + w->w - 1, FB_RGB(0,0,0x55));
+    }
+    else
+    {
+        fb_draw_hline(w->y, w->x, w->x + w->w - 1, COL_LIGHT_GRAY);
+        fb_draw_hline(w->y + GUI_TITLE_HEIGHT - 1, w->x, w->x + w->w - 1, COL_BLACK);
+    }
+
     fb_drawstring(w->x + 3, w->y + 2, w->title, fg, bg);
 
+    int cap_y = w->y + 2;
+
+    if (!w->minimized)
+    {
+        int min_x = w->x + w->w - 33;
+        fb_fillrect(min_x + 1, cap_y, 14, 14, COL_LIGHT_GRAY);
+        draw_3d_rect(min_x + 1, cap_y, 14, 14, 1);
+        fb_draw_hline(cap_y + 11, min_x + 4, min_x + 10, COL_BLACK);
+    }
+
     int close_x = w->x + w->w - 17;
-    fb_fillrect(close_x + 1, w->y + 2, 14, 14, COL_LIGHT_GRAY);
-    draw_3d_rect(close_x + 1, w->y + 2, 14, 14, 1);
-    fb_drawstring(close_x + 4, w->y + 3, "X", COL_BLACK, COL_LIGHT_GRAY);
+    fb_fillrect(close_x + 1, cap_y, 14, 14, COL_LIGHT_GRAY);
+    draw_3d_rect(close_x + 1, cap_y, 14, 14, 1);
+    fb_drawstring(close_x + 4, cap_y + 1, "X", COL_BLACK, COL_LIGHT_GRAY);
 }
 
 static void draw_window_content(gui_window_t* w)
@@ -209,6 +233,19 @@ static void draw_window_content(gui_window_t* w)
     int ch = w->h - GUI_TITLE_HEIGHT - 3;
 
     fb_fillrect(cx, cy, cw, ch, COL_WHITE);
+
+    if (w->pixels && w->pw > 0 && w->ph > 0)
+    {
+        for (int row = 0; row < w->ph && row < ch; row++)
+        {
+            for (int col = 0; col < w->pw && col < cw; col++)
+            {
+                uint32_t color = w->pixels[row * w->pw + col];
+                if (color != 0xFFFFFFFF)
+                    fb_putpixel((uint32_t)(cx + col), (uint32_t)(cy + row), color);
+            }
+        }
+    }
 
     if (w->content)
     {
@@ -274,6 +311,8 @@ static void draw_window(int idx)
 {
     gui_window_t* w = &windows[idx];
     if (!w->visible) return;
+
+    if (w->minimized) return;
 
     if (w->dragging)
     {
@@ -371,6 +410,50 @@ static void draw_mouse_cursor(void)
     }
 }
 
+static void handle_start_menu_click(int mx, int my)
+{
+    if (!start_menu_open) return;
+
+    int tby = fb_info.height - GUI_TASK_HEIGHT;
+    int item_h = FONT_HEIGHT + 4;
+    int mh = start_num_items * item_h + 4;
+    int smx = 2;
+    int smy = tby - mh;
+
+    start_menu_open = 0;
+
+    if (mx < smx || mx >= smx + GUI_START_DROPDOWN_W ||
+        my < smy || my >= smy + mh)
+        return;
+
+    int idx = (my - smy - 2) / item_h;
+    if (idx < 0 || idx >= start_num_items) return;
+    if (!start_items[idx]) return;
+
+    if (strcmp(start_items[idx], "Exit") == 0)
+        cmd_should_exit = 1;
+    else if (strcmp(start_items[idx], "About BlueOS") == 0)
+    {
+        if (gui_terminal_win >= 0)
+            gui_puts(gui_terminal_win, "\nBlueOS x86_64 v1.0\n\n");
+    }
+    else if (strcmp(start_items[idx], "Run...") == 0)
+    {
+        if (gui_terminal_win >= 0)
+            gui_puts(gui_terminal_win, "\nRun...\n\n");
+    }
+    else if (strcmp(start_items[idx], "Help") == 0)
+    {
+        if (gui_terminal_win >= 0)
+            gui_puts(gui_terminal_win, "\nBlueOS Help\n  Win9x-style GUI\n\n");
+    }
+    else if (strcmp(start_items[idx], "Programs") == 0)
+    {
+        if (gui_terminal_win >= 0)
+            gui_puts(gui_terminal_win, "\nPrograms menu\n\n");
+    }
+}
+
 static int handle_menu_click(int mx, int my)
 {
     if (my >= 0 && my < GUI_MENU_HEIGHT)
@@ -432,10 +515,17 @@ static int handle_taskbar_click(int mx, int my)
     int tby = fb_info.height - GUI_TASK_HEIGHT;
     if (my < tby || (uint32_t)my >= fb_info.height) return 0;
 
-    int sinfo_w = mouse_is_present() ? 10 * FONT_WIDTH + 8 : 0;
+    int start_x = 2;
+    int start_w = GUI_START_BUTTON_W;
+    if (mx >= start_x && mx < start_x + start_w)
+    {
+        start_menu_open = !start_menu_open;
+        return 1;
+    }
 
-    int bx = 2;
-    int max_w = fb_info.width - sinfo_w - 6;
+    int bx = start_x + start_w + 4;
+    int sinfo_w = mouse_is_present() ? 10 * FONT_WIDTH + 8 : 0;
+    int max_w = fb_info.width - sinfo_w - bx - 4;
 
     for (int i = 0; i < num_windows; i++)
     {
@@ -450,7 +540,21 @@ static int handle_taskbar_click(int mx, int my)
         }
         if (mx >= bx && mx < bx + bw)
         {
-            active_window = i;
+            if (windows[i].minimized)
+            {
+                windows[i].minimized = 0;
+                windows[i].visible = 1;
+                bring_to_front(i);
+            }
+            else if (active_window != i)
+            {
+                bring_to_front(i);
+            }
+            else
+            {
+                windows[i].minimized = 1;
+                windows[i].visible = 1;
+            }
             return 1;
         }
         bx += bw + 2;
@@ -465,6 +569,32 @@ static void handle_click(void)
     if (mx < 0 || (uint32_t)mx >= fb_info.width || my < 0 || (uint32_t)my >= fb_info.height)
         return;
 
+    if (start_menu_open)
+    {
+        int tby = fb_info.height - GUI_TASK_HEIGHT;
+        int item_h = FONT_HEIGHT + 4;
+        int mh = start_num_items * item_h + 4;
+        int smx = 2;
+        int smy = tby - mh;
+
+        if (mx >= smx && mx < smx + GUI_START_DROPDOWN_W &&
+            my >= smy && my < smy + mh)
+        {
+            handle_start_menu_click(mx, my);
+            return;
+        }
+
+        int start_x = 2;
+        int start_w = GUI_START_BUTTON_W;
+        if (my >= tby && mx >= start_x && mx < start_x + start_w)
+        {
+            start_menu_open = 0;
+            return;
+        }
+
+        start_menu_open = 0;
+    }
+
     if (handle_menu_click(mx, my))
         return;
 
@@ -474,23 +604,41 @@ static void handle_click(void)
     for (int i = num_windows - 1; i >= 0; i--)
     {
         gui_window_t* w = &windows[i];
-        if (!w->visible) continue;
+        if (!w->visible || w->minimized) continue;
         if (mx < w->x || mx >= w->x + w->w) continue;
         if (my < w->y || my >= w->y + w->h) continue;
 
+        int cap_y = w->y + 2;
         int close_x = w->x + w->w - 17;
-        if (my >= w->y + 1 && my < w->y + GUI_TITLE_HEIGHT - 1 &&
-            mx >= close_x + 1 && mx < close_x + 15)
+        int min_x = w->x + w->w - 33;
+
+        if (my >= cap_y && my < cap_y + 14)
         {
-            w->visible = 0;
-            if (active_window == i)
-                active_window = -1;
-            return;
+            if (mx >= close_x + 1 && mx < close_x + 15)
+            {
+                w->visible = 0;
+                w->minimized = 0;
+                if (active_window == i)
+                    active_window = -1;
+                return;
+            }
+            if (mx >= min_x + 1 && mx < min_x + 15)
+            {
+                w->minimized = 1;
+                if (active_window == i)
+                    active_window = -1;
+                return;
+            }
+        }
+
+        if (i != active_window)
+        {
+            bring_to_front(i);
+            w = &windows[active_window];
         }
 
         if (my >= w->y && my < w->y + GUI_TITLE_HEIGHT)
         {
-            active_window = i;
             w->dragging = 1;
             w->drag_off_x = mx - w->x;
             w->drag_off_y = my - w->y;
@@ -498,8 +646,6 @@ static void handle_click(void)
             w->drag_outline_y = w->y;
             return;
         }
-
-        active_window = i;
 
         int cx = mx - (w->x + 1);
         int cy = my - (w->y + GUI_TITLE_HEIGHT + 1);
@@ -533,6 +679,77 @@ static void handle_click(void)
             }
         }
         return;
+    }
+}
+
+static void gui_ensure_pixels(int win_id)
+{
+    if (win_id < 0 || win_id >= num_windows) return;
+    gui_window_t* w = &windows[win_id];
+    if (w->pixels) return;
+    w->pw = w->w - 2;
+    w->ph = w->h - GUI_TITLE_HEIGHT - 3;
+    if (w->pw < 1) w->pw = 1;
+    if (w->ph < 1) w->ph = 1;
+    w->pixels = malloc((uint32_t)(w->pw * w->ph * 4));
+    if (w->pixels)
+        memset(w->pixels, 0xFF, (uint32_t)(w->pw * w->ph * 4));
+}
+
+void gui_draw_rect(int win_id, int x, int y, int w, int h, uint32_t color)
+{
+    if (win_id < 0 || win_id >= num_windows) return;
+    gui_ensure_pixels(win_id);
+    gui_window_t* win = &windows[win_id];
+    if (!win->pixels) return;
+
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > win->pw) w = win->pw - x;
+    if (y + h > win->ph) h = win->ph - y;
+    if (w <= 0 || h <= 0) return;
+
+    for (int row = 0; row < h; row++)
+    {
+        uint32_t* line = &win->pixels[(uint32_t)((y + row) * win->pw + x)];
+        for (int col = 0; col < w; col++)
+            line[col] = color;
+    }
+}
+
+void gui_draw_text(int win_id, int x, int y, const char* str, uint32_t fg, uint32_t bg)
+{
+    if (win_id < 0 || win_id >= num_windows) return;
+    gui_ensure_pixels(win_id);
+    gui_window_t* win = &windows[win_id];
+    if (!win->pixels || !str) return;
+
+    int cx = x;
+    for (int i = 0; str[i]; i++)
+    {
+        if (str[i] == '\n')
+        {
+            cx = x;
+            y += FONT_HEIGHT;
+            continue;
+        }
+        int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
+        if (ci < 0 || ci >= FONT_NUM_CHARS) continue;
+
+        for (int row = 0; row < FONT_HEIGHT; row++)
+        {
+            int py = y + row;
+            if (py < 0 || py >= win->ph) continue;
+            unsigned char bits = font_data[ci][row];
+            for (int col = 0; col < FONT_WIDTH; col++)
+            {
+                int px = cx + col;
+                if (px < 0 || px >= win->pw) continue;
+                uint32_t color = (bits & (1 << (7 - col))) ? fg : bg;
+                win->pixels[py * win->pw + px] = color;
+            }
+        }
+        cx += FONT_WIDTH;
     }
 }
 
@@ -587,6 +804,9 @@ void gui_init(void)
     gui_menu_init();
     cascade_x = 20;
     cascade_y = 40;
+    start_menu_open = 0;
+    start_menu_hovered = -1;
+    start_button_down = 0;
 }
 
 int gui_create(const char* title, int w, int h)
@@ -606,6 +826,8 @@ int gui_create(const char* title, int w, int h)
     win->w = w;
     win->h = h;
     win->visible = 1;
+    win->minimized = 0;
+    win->pixels = 0;
     win->cw = (w - 2) / FONT_WIDTH;
     win->ch = (h - GUI_TITLE_HEIGHT - 3) / FONT_HEIGHT;
     win->cursor_x = 0;
@@ -686,6 +908,10 @@ void gui_clear(int idx)
 {
     if (idx < 0 || idx >= num_windows) return;
     gui_window_t* w = &windows[idx];
+    if (w->pixels)
+    {
+        memset(w->pixels, 0xFF, (uint32_t)(w->pw * w->ph * 4));
+    }
     if (w->content)
     {
         memset(w->content, ' ', w->cw * w->ch);
@@ -715,6 +941,98 @@ int gui_add_button(int idx, const char* label, int bx, int by, int bw, void (*cb
     return bi;
 }
 
+static void draw_taskbar(void)
+{
+    int tby = fb_info.height - GUI_TASK_HEIGHT;
+
+    fb_fillrect(0, tby, fb_info.width, GUI_TASK_HEIGHT, COL_LIGHT_GRAY);
+    fb_draw_hline(tby, 0, fb_info.width - 1, COL_WHITE);
+    fb_draw_vline(0, tby, fb_info.height - 1, COL_WHITE);
+    fb_draw_vline(fb_info.width - 1, tby, fb_info.height - 1, COL_DARK_GRAY);
+
+    int start_x = 2;
+    int start_y = tby + 2;
+    int start_w = GUI_START_BUTTON_W;
+    int start_h = GUI_TASK_HEIGHT - 4;
+
+    uint32_t start_bg = start_menu_open ? FB_RGB(0,0,0x80) : COL_LIGHT_GRAY;
+    uint32_t start_fg = start_menu_open ? COL_WHITE : COL_BLACK;
+    fb_fillrect(start_x, start_y, start_w, start_h, start_bg);
+    draw_3d_rect(start_x, start_y, start_w, start_h, !start_menu_open);
+    fb_drawstring(start_x + 6, start_y + 2, "Start", start_fg, start_bg);
+
+    char buf[64];
+    int len = 0;
+
+    if (mouse_is_present())
+    {
+        int mx = mouse_get_x();
+        int my = mouse_get_y();
+        buf[len++] = 'M';
+        buf[len++] = ':';
+        int t = mx;
+        if (t >= 100) { buf[len++] = '0' + t / 100; t %= 100; }
+        buf[len++] = '0' + t / 10;
+        buf[len++] = '0' + t % 10;
+        buf[len++] = ',';
+        t = my;
+        if (t >= 100) { buf[len++] = '0' + t / 100; t %= 100; }
+        buf[len++] = '0' + t / 10;
+        buf[len++] = '0' + t % 10;
+    }
+    buf[len] = 0;
+    int sinfo_x = fb_info.width - len * FONT_WIDTH - 6;
+    fb_drawstring(sinfo_x, tby + 4, buf, COL_BLACK, COL_LIGHT_GRAY);
+
+    int bx = start_x + start_w + 4;
+    int sinfo_w = (len > 0 ? len * FONT_WIDTH + 8 : 0);
+    int max_buttons_w = fb_info.width - sinfo_w - bx - 4;
+
+    for (int i = 0; i < num_windows; i++)
+    {
+        if (!windows[i].visible) continue;
+
+        int bw = strlen(windows[i].title) * FONT_WIDTH + 14;
+        if (bw > 180) bw = 180;
+        if (bx + bw > max_buttons_w)
+        {
+            int remaining = max_buttons_w - bx;
+            if (remaining < 30) break;
+            bw = remaining;
+        }
+
+        int is_active = (i == active_window) && !windows[i].minimized;
+        int is_min = windows[i].minimized;
+
+        fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_LIGHT_GRAY);
+
+        if (is_active)
+        {
+            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_DARK_GRAY);
+            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
+            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_WHITE);
+            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
+        }
+        else if (is_min)
+        {
+            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_LIGHT_GRAY);
+            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_LIGHT_GRAY);
+            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_LIGHT_GRAY);
+            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_LIGHT_GRAY);
+        }
+        else
+        {
+            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_WHITE);
+            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
+            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_DARK_GRAY);
+            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
+        }
+
+        fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_LIGHT_GRAY);
+        bx += bw + 2;
+    }
+}
+
 void gui_render(void)
 {
     if (!initialized) return;
@@ -739,6 +1057,24 @@ void gui_render(void)
         }
     }
 
+    if (start_menu_open)
+    {
+        int tby = fb_info.height - GUI_TASK_HEIGHT;
+        int item_h = FONT_HEIGHT + 4;
+        int mmx = mouse_get_x();
+        int mmy = mouse_get_y();
+        start_menu_hovered = -1;
+        int mh = start_num_items * item_h + 4;
+        int smy = tby - mh;
+        if (mmx >= 2 && mmx < 2 + GUI_START_DROPDOWN_W &&
+            mmy >= smy && mmy < smy + mh)
+        {
+            int idx = (mmy - smy - 2) / item_h;
+            if (idx >= 0 && idx < start_num_items)
+                start_menu_hovered = idx;
+        }
+    }
+
     draw_menu_bar();
 
     for (int i = 0; i < num_windows; i++)
@@ -754,12 +1090,13 @@ void gui_render(void)
 
     for (int i = 0; i < num_windows; i++)
     {
-        if (i != active_window && windows[i].visible)
+        if (i != active_window && windows[i].visible && !windows[i].minimized)
             draw_window(i);
     }
-    if (active_window >= 0 && windows[active_window].visible)
+    if (active_window >= 0 && windows[active_window].visible && !windows[active_window].minimized)
         draw_window(active_window);
 
+    draw_start_menu();
     draw_taskbar();
 
     uint8_t buttons = mouse_get_buttons();

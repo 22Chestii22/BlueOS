@@ -17,10 +17,10 @@ int vga_init(void)
     }
     else
     {
-        current_mode.width = 1024;
-        current_mode.height = 768;
+        current_mode.width = 1280;
+        current_mode.height = 720;
         current_mode.bpp = 32;
-        current_mode.pitch = 1024 * 4;
+        current_mode.pitch = 1280 * 4;
         current_mode.framebuffer = 0;
         current_mode.mode = VGA_MODE_FRAMEBUFFER;
     }

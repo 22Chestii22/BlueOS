@@ -41,7 +41,11 @@ syscall_stub_handler:
     mov rcx, [rsp + 24]
     mov r8,  [rsp + 72]
     mov r9,  [rsp + 56]
+    sub rsp, 8
+    mov rax, [rsp + 72]
+    mov [rsp], rax
     call handle_syscall
+    add rsp, 8
 
     mov [rsp], rax
 .restore_and_return:
