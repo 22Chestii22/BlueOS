@@ -1,7 +1,10 @@
 #include "types.h"
-#include "io.h"
+#include "string.h"
 #include "screen.h"
+#include "idt.h"
 #include "serial.h"
+#include "io.h"
+#include "fb.h"
 
 extern void timer_isr(void);
 
@@ -177,6 +180,8 @@ void isr_handler(int num, uint64_t error_code, uint64_t rip)
         serial_hex(read_cr2());
     }
     serial_write("\n");
+
+    fb_bsod_panic(num, error_code, rip);
 
     screen_set_color(COLOR_WHITE, COLOR_BLUE);
     screen_clear();

@@ -58,14 +58,14 @@ static void mouse_write(uint8_t data)
 
 void mouse_handler(void)
 {
+    if (!mouse_init_done)
+        return;
+
     uint8_t status = api->inb(MOUSE_PORT_CMD);
     if (!(status & 0x20)) return;
     if (!(status & 1)) return;
 
     uint8_t data = api->inb(MOUSE_PORT_DATA);
-
-    if (!mouse_init_done)
-        return;
 
     switch (mouse_packet_index)
     {

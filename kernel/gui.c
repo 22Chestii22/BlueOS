@@ -21,7 +21,30 @@ static gui_menu_t menus[GUI_MAX_MENUS];
 static int num_menus = 0;
 volatile int cmd_should_exit = 0;
 
-extern int gui_term_win;
+static int gui_terminal_win = -1;
+
+static void gui_terminal_putchar(char c)
+{
+    gui_putchar(gui_terminal_win, c);
+}
+
+int gui_create_terminal(const char* title, int x, int y, int w, int h)
+{
+    gui_terminal_win = gui_create(title, x, y, w, h);
+    screen_set_redirect(gui_terminal_putchar);
+    return gui_terminal_win;
+}
+
+int gui_get_terminal(void)
+{
+    return gui_terminal_win;
+}
+
+void gui_clear_terminal(void)
+{
+    if (gui_terminal_win >= 0)
+        gui_clear(gui_terminal_win);
+}
 
 static void draw_3d_rect(int x, int y, int w, int h, int raised)
 {
@@ -350,9 +373,15 @@ static int handle_menu_click(int mx, int my)
                 if (strcmp(menus[i].items[idx].label, "Exit") == 0)
                     cmd_should_exit = 1;
                 else if (strcmp(menus[i].items[idx].label, "About BlueOS") == 0)
-                    gui_puts(gui_term_win, "\nBlueOS x86_64 v1.0\n\n");
+                {
+                    if (gui_terminal_win >= 0)
+                        gui_puts(gui_terminal_win, "\nBlueOS x86_64 v1.0\n\n");
+                }
                 else if (strcmp(menus[i].items[idx].label, "Run...") == 0)
-                    gui_puts(gui_term_win, "\nRun...\n\n");
+                {
+                    if (gui_terminal_win >= 0)
+                        gui_puts(gui_terminal_win, "\nRun...\n\n");
+                }
             }
             for (int j = 0; j < num_menus; j++)
                 menus[j].is_open = 0;
@@ -384,11 +413,6 @@ static void handle_click(void)
         if (mx < w->x || mx >= w->x + w->w) continue;
         if (my < w->y || my >= w->y + w->h) continue;
 
-        if (i == gui_term_win)
-        {
-            active_window = i;
-            return;
-        }
         int close_x = w->x + w->w - 17;
         if (my >= w->y + 1 && my < w->y + GUI_TITLE_HEIGHT - 1 &&
             mx >= close_x + 1 && mx < close_x + 15)
@@ -527,7 +551,7 @@ void gui_putchar(int idx, char c)
 {
     if (idx < 0 || idx >= num_windows) return;
     gui_window_t* w = &windows[idx];
-    if (!w->visible || !w->content) return;
+    if (!w->content) return;
 
     if (c == '\n')
     {

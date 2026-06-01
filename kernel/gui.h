@@ -63,6 +63,9 @@ void gui_menu_init(void);
 void gui_set_content_click_callback(int win_id, void (*cb)(int, int, int));
 void gui_set_title(int win_id, const char* title);
 void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h);
+int gui_create_terminal(const char* title, int x, int y, int w, int h);
+int gui_get_terminal(void);
+void gui_clear_terminal(void);
 
 extern volatile int cmd_should_exit;
 

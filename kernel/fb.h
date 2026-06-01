@@ -24,6 +24,7 @@ void fb_draw_vline(int x, int y0, int y1, uint32_t color);
 void fb_draw_hline(int y, int x0, int x1, uint32_t color);
 void fb_backbuffer_alloc(void);
 void fb_clear(uint32_t color);
+void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip);
 
 #define FB_RGB(r, g, b) (((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | (uint32_t)(b))
 #define FB_GET_R(c) (((c) >> 16) & 0xFF)

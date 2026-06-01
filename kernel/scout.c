@@ -6,6 +6,7 @@
 #include "gui.h"
 #include "vfs.h"
 #include "process.h"
+#include "pe.h"
 #include "font.h"
 
 #define SCOUT_MAX_ENTRIES 256
@@ -19,7 +20,7 @@ typedef struct {
 
 static scout_entry_t scout_entries[SCOUT_MAX_ENTRIES];
 static int scout_num_entries = 0;
-static char scout_current_dir[SCOUT_PATH_MAX] = "\\";
+static char scout_current_dir[SCOUT_PATH_MAX] = "\\SYSTEM\\PROGRAMS";
 static int scout_win = -1;
 
 static void scout_load_dir(const char* path)
@@ -114,6 +115,16 @@ static void scout_navigate(const char* path)
     scout_refresh_content();
 }
 
+static int has_exe_ext(const char* name)
+{
+    int len = strlen(name);
+    if (len < 5) return 0;
+    return (name[len - 4] == '.' &&
+            (name[len - 3] == 'E' || name[len - 3] == 'e') &&
+            (name[len - 2] == 'X' || name[len - 2] == 'x') &&
+            (name[len - 1] == 'E' || name[len - 1] == 'e'));
+}
+
 static void scout_on_click(int win_id, int mx, int my)
 {
     (void)win_id;
@@ -133,37 +144,49 @@ static void scout_on_click(int win_id, int mx, int my)
     if (idx < 0 || idx >= scout_num_entries) return;
 
     scout_entry_t* e = &scout_entries[idx];
-    if (e->type != 'D') return;
 
     char new_path[SCOUT_PATH_MAX];
-    if (strcmp(e->name, ".") == 0) return;
-    if (strcmp(e->name, "..") == 0)
+    strcpy(new_path, scout_current_dir);
+    int len = strlen(new_path);
+    if (len > 0 && new_path[len - 1] != '\\')
+        strcat(new_path, "\\");
+    strcat(new_path, e->name);
+    int nl = strlen(new_path);
+    if (nl > 1 && new_path[nl - 1] == '\\')
+        new_path[nl - 1] = 0;
+
+    if (e->type == 'D')
     {
-        int len = strlen(scout_current_dir);
-        if (len <= 1) return;
-        int i;
-        for (i = len - 1; i >= 0; i--)
-            if (scout_current_dir[i] == '\\') break;
-        if (i <= 0)
-            strcpy(new_path, "\\");
-        else
+        if (strcmp(e->name, ".") == 0) return;
+        if (strcmp(e->name, "..") == 0)
         {
-            memcpy(new_path, scout_current_dir, i);
-            new_path[i] = 0;
+            int plen = strlen(scout_current_dir);
+            if (plen <= 1) return;
+            int i;
+            for (i = plen - 1; i >= 0; i--)
+                if (scout_current_dir[i] == '\\') break;
+            if (i <= 0)
+                strcpy(new_path, "\\");
+            else
+            {
+                memcpy(new_path, scout_current_dir, i);
+                new_path[i] = 0;
+            }
         }
+        scout_navigate(new_path);
     }
-    else
+    else if (has_exe_ext(e->name))
     {
-        strcpy(new_path, scout_current_dir);
-        int len = strlen(new_path);
-        if (len > 0 && new_path[len - 1] != '\\')
-            strcat(new_path, "\\");
-        strcat(new_path, e->name);
-        int nl = strlen(new_path);
-        if (nl > 1 && new_path[nl - 1] == '\\')
-            new_path[nl - 1] = 0;
+        gui_puts(scout_win, "\n Launching ");
+        gui_puts(scout_win, e->name);
+        gui_puts(scout_win, "...\n");
+        int pid = pe_spawn(new_path);
+        if (pid > 0)
+            process_wait((uint32_t)pid);
+        else
+            gui_puts(scout_win, " Failed to launch.\n");
+        scout_refresh_content();
     }
-    scout_navigate(new_path);
     (void)scout_num_entries;
 }
 

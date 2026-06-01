@@ -1,10 +1,13 @@
 #include "types.h"
+#include "string.h"
 #include "screen.h"
 #include "process.h"
 #include "mem.h"
 #include "vfs.h"
 #include "keyb.h"
 #include "timer.h"
+#include "gui.h"
+#include "pe.h"
 
 extern void syscall_stub_handler(void);
 
@@ -73,6 +76,45 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
         case 13:
             timer_sleep(a1);
             return 0;
+
+        case 14:
+            return gui_create_terminal((const char*)a1, (int)a2, (int)a3, (int)a4, (int)a5);
+
+        case 15:
+            gui_clear_terminal();
+            return 0;
+
+        case 16:
+        {
+            char buf[4096];
+            int r = vfs_readdir((const char*)a1, buf, sizeof(buf));
+            uint32_t max = (uint32_t)a3;
+            memset((void*)a2, 0, max);
+            if (r > 0)
+            {
+                uint32_t to_copy = (uint32_t)r;
+                if (to_copy > max) to_copy = max;
+                memcpy((void*)a2, buf, to_copy);
+            }
+            return r;
+        }
+
+        case 17:
+            return pe_check_format((const char*)a1) ? 1 : 0;
+
+        case 18:
+        {
+            int pid = pe_spawn((const char*)a1);
+            if (pid > 0)
+            {
+                process_wait((uint32_t)pid);
+                return 0;
+            }
+            return -1;
+        }
+
+        case 19:
+            return vfs_exists((const char*)a1) ? 1 : 0;
 
         default:
             printf("[SYSCALL] Unknown syscall %d\n", (int)n);

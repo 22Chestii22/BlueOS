@@ -31,20 +31,16 @@ if command -v mformat &> /dev/null; then
     echo "Creating DOS directory structure..."
     mmd -i "$IMAGE" ::/SYSTEM
     mmd -i "$IMAGE" ::/SYSTEM/DRIVERS
+    mmd -i "$IMAGE" ::/SYSTEM/PROGRAMS
     mmd -i "$IMAGE" ::/TEMP
     mmd -i "$IMAGE" ::/USERS
     mmd -i "$IMAGE" ::/USERS/DEFAULT
 
     # Copy executables
     echo "Copying executables..."
-    if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/test.exe" ::/SYSTEM/TEST.EXE
-        echo "  TEST.EXE"
-    fi
-
-    if [ -f "$PROJECT_ROOT/programs/count.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/count.exe" ::/SYSTEM/COUNT.EXE
-        echo "  COUNT.EXE"
+    if [ -f "$PROJECT_ROOT/programs/cmd/cmd.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/cmd/cmd.exe" ::/SYSTEM/PROGRAMS/CMD.EXE
+        echo "  CMD.EXE"
     fi
 
     # Copy loadable modules
@@ -57,8 +53,8 @@ if command -v mformat &> /dev/null; then
     # Create AUTOEXEC.BAT in /SYSTEM/
     echo "Creating AUTOEXEC.BAT..."
     {
-        echo "SET PATH=C:\\SYSTEM"
-        echo "TEST"
+        echo "SET PATH=C:\\SYSTEM;C:\\SYSTEM\\PROGRAMS"
+        echo "CMD"
     } | mcopy -i "$IMAGE" - ::/SYSTEM/AUTOEXEC.BAT
 
     # Create CONFIG.SYS in /SYSTEM/
@@ -85,19 +81,15 @@ else
     echo "Creating DOS directory structure..."
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM/DRIVERS
+    sudo mkdir -p "$MOUNT_DIR"/SYSTEM/PROGRAMS
     sudo mkdir -p "$MOUNT_DIR"/TEMP
     sudo mkdir -p "$MOUNT_DIR"/USERS
     sudo mkdir -p "$MOUNT_DIR"/USERS/DEFAULT
 
     echo "Copying executables..."
-    if [ -f "$PROJECT_ROOT/programs/test.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/test.exe" "$MOUNT_DIR"/SYSTEM/TEST.EXE
-        echo "  TEST.EXE"
-    fi
-
-    if [ -f "$PROJECT_ROOT/programs/count.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/count.exe" "$MOUNT_DIR"/SYSTEM/COUNT.EXE
-        echo "  COUNT.EXE"
+    if [ -f "$PROJECT_ROOT/programs/cmd/cmd.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/cmd/cmd.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/CMD.EXE
+        echo "  CMD.EXE"
     fi
 
     echo "Copying modules..."
@@ -107,8 +99,8 @@ else
     fi
 
     echo "Creating AUTOEXEC.BAT in /SYSTEM/..."
-    echo "SET PATH=C:\\SYSTEM" | sudo tee "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
-    echo "TEST" | sudo tee -a "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
+    echo "SET PATH=C:\\SYSTEM;C:\\SYSTEM\\PROGRAMS" | sudo tee "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
+    echo "CMD" | sudo tee -a "$MOUNT_DIR"/SYSTEM/AUTOEXEC.BAT > /dev/null
 
     echo "Creating CONFIG.SYS in /SYSTEM/..."
     echo "FILES=30" | sudo tee "$MOUNT_DIR"/SYSTEM/CONFIG.SYS > /dev/null

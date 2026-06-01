@@ -8,7 +8,6 @@
 #include "vfs.h"
 #include "fat.h"
 #include "syscall.h"
-#include "cmd.h"
 #include "serial.h"
 #include "gdt.h"
 #include "paging.h"
@@ -25,14 +24,6 @@ extern void scheduler_init(void);
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
 extern void mouse_module_init(kernel_api_t* api);
-
-static int term_win = -1;
-int gui_term_win = -1;
-
-static void term_putchar(char c)
-{
-    gui_putchar(term_win, c);
-}
 
 static void idle_task(void)
 {
@@ -161,9 +152,6 @@ void kernel_main(void* mbd, uint32_t magic)
 
     vga_init();
     gui_init();
-    term_win = gui_create("Command Prompt", 30, 30, 700, 400);
-    gui_term_win = term_win;
-    screen_set_redirect(term_putchar);
 
     keyb_module_init(&kernel_api);
     timer_module_init(&kernel_api);
@@ -176,7 +164,6 @@ void kernel_main(void* mbd, uint32_t magic)
 
     scheduler_init();
     process_create("gui_render", (uint64_t)gui_render_task, 0);
-    process_create("cmd.exe", (uint64_t)cmd_run, 0);
     process_create("scout", (uint64_t)scout_run, 0);
     process_create("idle", (uint64_t)idle_task, 0);
 
