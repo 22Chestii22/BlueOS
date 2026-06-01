@@ -315,7 +315,9 @@ static void draw_window_content(gui_window_t* w)
             {
                 uint32_t color = w->pixels[row * w->pw + col];
                 if (color != 0xFFFFFFFF)
+                {
                     fb_putpixel((uint32_t)(cx + col), (uint32_t)(cy + row), color);
+                }
             }
         }
     }
@@ -848,17 +850,9 @@ static void gui_ensure_pixels(int win_id)
     if (w->pw < 1) w->pw = 1;
     if (w->ph < 1) w->ph = 1;
     uint32_t alloc_size = (uint32_t)(w->pw * w->ph * 4);
-    printf("[GUI] ensure_pixels win=%d pw=%d ph=%d alloc=%u\n", win_id, w->pw, w->ph, alloc_size);
     w->pixels = malloc(alloc_size);
     if (w->pixels)
-    {
         memset(w->pixels, 0xFF, alloc_size);
-        printf("[GUI] pixel buffer allocated OK at 0x%x\n", (uint32_t)(uint64_t)w->pixels);
-    }
-    else
-    {
-        printf("[GUI] pixel buffer ALLOCATION FAILED!\n");
-    }
 }
 
 void gui_draw_rect(int win_id, int x, int y, int w, int h, uint32_t color)
@@ -1015,6 +1009,7 @@ int gui_create(const char* title, int w, int h)
     win->pixels = malloc(pix_size);
     if (win->pixels)
         memset(win->pixels, 0xFF, pix_size);
+
 
     win->content = malloc(win->cw * win->ch);
     if (win->content)

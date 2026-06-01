@@ -540,7 +540,7 @@ refresh:
     ; Draw size text
     push r15
     push rbx
-    lea rsi, [r15 + 2]
+    lea rdi, [r15 + 2]
     call strlen
     lea r10, [r15 + 2]
     add r10, rax
