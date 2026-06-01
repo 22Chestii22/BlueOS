@@ -21,6 +21,7 @@ static volatile int mouse_present = 0;
 
 static volatile int mouse_packet_index = 0;
 static volatile uint8_t mouse_packet[3];
+static volatile int mouse_init_done = 0;
 
 static void mouse_wait_write(void)
 {
@@ -62,6 +63,9 @@ void mouse_handler(void)
     if (!(status & 1)) return;
 
     uint8_t data = api->inb(MOUSE_PORT_DATA);
+
+    if (!mouse_init_done)
+        return;
 
     switch (mouse_packet_index)
     {
@@ -146,8 +150,18 @@ void mouse_module_init(kernel_api_t* kapi)
 {
     api = kapi;
 
+    mouse_init_done = 0;
+
+    if (fb_info.width > 0 && fb_info.height > 0)
+    {
+        mouse_x = fb_info.width / 2;
+        mouse_y = fb_info.height / 2;
+    }
+
     api->irq_install_handler(12, (void*)mouse_handler);
     mouse_init_ps2();
 
-    api->printf("[MOUSE] Module loaded (IRQ 12)\n");
+    mouse_init_done = 1;
+
+    api->printf("[MOUSE] Module loaded (IRQ 12) at %dx%d\n", mouse_x, mouse_y);
 }

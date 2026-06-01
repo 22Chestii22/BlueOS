@@ -17,6 +17,7 @@
 #include "vga.h"
 #include "fb.h"
 #include "gui.h"
+#include "scout.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -176,6 +177,7 @@ void kernel_main(void* mbd, uint32_t magic)
     scheduler_init();
     process_create("gui_render", (uint64_t)gui_render_task, 0);
     process_create("cmd.exe", (uint64_t)cmd_run, 0);
+    process_create("scout", (uint64_t)scout_run, 0);
     process_create("idle", (uint64_t)idle_task, 0);
 
     process_t* first = process_get_ready();

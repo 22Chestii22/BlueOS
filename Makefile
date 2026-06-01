@@ -39,6 +39,7 @@ KERNEL_SRCS = \
     kernel/vga.c \
     kernel/fb.c \
     kernel/gui.c \
+    kernel/scout.c \
     modules/keyb/keyb.c \
     modules/timer/timer.c \
     modules/ata/ata.c \
@@ -98,6 +99,6 @@ clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img
 	rm -f programs/test.bin programs/test.exe
 	rm -f programs/count.bin programs/count.exe
-	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
+	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o kernel/scout.o
 	rm -f modules/demo/demo.o modules/demo/demo.sys
 	rm -rf iso

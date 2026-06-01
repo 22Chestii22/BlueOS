@@ -48,6 +48,7 @@ typedef struct {
     int dragging;
     int drag_off_x, drag_off_y;
     int drag_outline_x, drag_outline_y;
+    void (*on_content_click)(int win_id, int mx, int my);
 } gui_window_t;
 
 void gui_init(void);
@@ -59,6 +60,9 @@ int gui_add_button(int win_id, const char* label, int x, int y, int w, void (*cb
 void gui_render(void);
 void gui_set_active(int win_id);
 void gui_menu_init(void);
+void gui_set_content_click_callback(int win_id, void (*cb)(int, int, int));
+void gui_set_title(int win_id, const char* title);
+void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h);
 
 extern volatile int cmd_should_exit;
 

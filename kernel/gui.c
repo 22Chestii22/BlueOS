@@ -428,6 +428,11 @@ static void handle_click(void)
                 return;
             }
         }
+        if (w->on_content_click)
+        {
+            w->on_content_click(i, mx, my);
+            return;
+        }
         return;
     }
 }
@@ -681,4 +686,28 @@ void gui_set_active(int idx)
 {
     if (idx >= 0 && idx < num_windows)
         active_window = idx;
+}
+
+void gui_set_content_click_callback(int win_id, void (*cb)(int, int, int))
+{
+    if (win_id < 0 || win_id >= num_windows) return;
+    windows[win_id].on_content_click = cb;
+}
+
+void gui_set_title(int win_id, const char* title)
+{
+    if (win_id < 0 || win_id >= num_windows) return;
+    int slen = strlen(title);
+    if (slen >= (int)sizeof(windows[win_id].title)) slen = sizeof(windows[win_id].title) - 1;
+    memcpy(windows[win_id].title, title, slen);
+    windows[win_id].title[slen] = 0;
+}
+
+void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h)
+{
+    if (win_id < 0 || win_id >= num_windows) return;
+    if (x) *x = windows[win_id].x;
+    if (y) *y = windows[win_id].y;
+    if (w) *w = windows[win_id].w;
+    if (h) *h = windows[win_id].h;
 }
