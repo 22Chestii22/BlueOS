@@ -46,13 +46,16 @@ static uint8_t mouse_read(void)
     return api->inb(MOUSE_PORT_DATA);
 }
 
-static void mouse_write(uint8_t data)
+static int mouse_write(uint8_t data)
 {
     mouse_wait_write();
     api->outb(MOUSE_PORT_CMD, 0xD4);
     mouse_wait_write();
     api->outb(MOUSE_PORT_DATA, data);
-    mouse_read();
+    uint8_t ack = mouse_read();
+    if (ack != MOUSE_ACK)
+        return -1;
+    return 0;
 }
 
 void mouse_handler(void)
@@ -116,10 +119,10 @@ static int mouse_init_ps2(void)
     mouse_wait_write();
     api->outb(MOUSE_PORT_DATA, config);
 
-    mouse_write(MOUSE_SET_DEFAULTS);
-    mouse_write(MOUSE_SET_SAMPLE);
-    mouse_write(100);
-    mouse_write(MOUSE_ENABLE);
+    if (mouse_write(MOUSE_SET_DEFAULTS) != 0) return -1;
+    if (mouse_write(MOUSE_SET_SAMPLE) != 0) return -1;
+    if (mouse_write(100) != 0) return -1;
+    if (mouse_write(MOUSE_ENABLE) != 0) return -1;
 
     mouse_present = 1;
     return 0;
@@ -158,7 +161,11 @@ void mouse_module_init(kernel_api_t* kapi)
     }
 
     api->irq_install_handler(12, (void*)mouse_handler);
-    mouse_init_ps2();
+    if (mouse_init_ps2() != 0)
+    {
+        api->printf("[MOUSE] PS/2 init failed\n");
+        return;
+    }
 
     mouse_init_done = 1;
 

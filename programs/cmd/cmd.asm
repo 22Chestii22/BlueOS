@@ -490,7 +490,8 @@ parse_and_exec:
     call strcpy
     lea rdi, [rel new_dir_buf]
     call strlen
-    lea rdi, [rel new_dir_buf + rax]
+    lea rdi, [rel new_dir_buf]
+    add rdi, rax
     cmp rax, 1
     je .cd_no_backslash
     cmp byte [rdi - 1], '\'
@@ -513,7 +514,9 @@ parse_and_exec:
     call strlen
     cmp rax, 2
     jb .cd_check_exists
-    lea rdi, [rel new_dir_buf + rax - 2]
+    lea rdi, [rel new_dir_buf]
+    add rdi, rax
+    sub rdi, 2
     cmp byte [rdi], '.'
     jne .cd_check_exists
     cmp byte [rdi + 1], '.'
@@ -582,7 +585,8 @@ parse_and_exec:
     call strcpy
     lea rdi, [rel dir_path_buf]
     call strlen
-    lea rdi, [rel dir_path_buf + rax]
+    lea rdi, [rel dir_path_buf]
+    add rdi, rax
     cmp rax, 1
     je .dir_rel_nos
     cmp byte [rdi - 1], '\'
@@ -659,7 +663,8 @@ parse_and_exec:
     call strcpy
     lea rdi, [rel dir_line_buf + 4]
     call strlen
-    lea rdi, [rel dir_line_buf + 4 + rax]
+    lea rdi, [rel dir_line_buf + 4]
+    add rdi, rax
     mov byte [rdi], '\'
     mov byte [rdi + 1], 0
 
@@ -743,7 +748,8 @@ parse_and_exec:
     call strcpy
     lea rdi, [rel type_path_buf]
     call strlen
-    lea rdi, [rel type_path_buf + rax]
+    lea rdi, [rel type_path_buf]
+    add rdi, rax
     cmp byte [rdi - 1], '\'
     je .type_no_slash
     mov byte [rdi], '\'
@@ -776,7 +782,9 @@ parse_and_exec:
     jle .type_close
 
     ; Print what we read
-    mov byte [rel temp_buf + rax], 0
+    lea rdi, [rel temp_buf]
+    add rdi, rax
+    mov byte [rdi], 0
     lea rdi, [rel temp_buf]
     call print_str
     jmp .type_read_loop
@@ -865,7 +873,8 @@ run_external:
     call strcpy
     lea rdi, [rel ext_path_buf]
     call strlen
-    lea rdi, [rel ext_path_buf + rax]
+    lea rdi, [rel ext_path_buf]
+    add rdi, rax
     cmp byte [rdi - 1], '\'
     je .ext_no_slash1
     mov byte [rdi], '\'
@@ -877,7 +886,8 @@ run_external:
     ; Append .exe
     lea rdi, [rel ext_path_buf]
     call strlen
-    lea rdi, [rel ext_path_buf + rax]
+    lea rdi, [rel ext_path_buf]
+    add rdi, rax
     mov byte [rdi], '.'
     mov byte [rdi + 1], 'e'
     mov byte [rdi + 2], 'x'
@@ -907,7 +917,8 @@ run_external:
     ; Append .exe
     lea rdi, [rel ext_path_buf]
     call strlen
-    lea rdi, [rel ext_path_buf + rax]
+    lea rdi, [rel ext_path_buf]
+    add rdi, rax
     mov byte [rdi], '.'
     mov byte [rdi + 1], 'e'
     mov byte [rdi + 2], 'x'
@@ -945,7 +956,8 @@ run_external:
 
     lea rdi, [rel ext_path_buf]
     call strlen
-    lea rdi, [rel ext_path_buf + rax]
+    lea rdi, [rel ext_path_buf]
+    add rdi, rax
     mov byte [rdi], '.'
     mov byte [rdi + 1], 'e'
     mov byte [rdi + 2], 'x'

@@ -125,7 +125,6 @@ uint32_t process_create(const char* name, uint64_t entry, int user)
         proc->context->ss = 0x1B;
         proc->context->rflags = 0x200;
 
-        gdt_set_kernel_stack(kstack_top);
     }
     else
     {
