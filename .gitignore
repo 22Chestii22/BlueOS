@@ -1,6 +1,7 @@
 *.o
 *.elf
 *.bin
+*.exe
 blueos.iso
 disk.img
 iso/
