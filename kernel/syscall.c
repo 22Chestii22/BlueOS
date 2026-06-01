@@ -78,7 +78,7 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
             return 0;
 
         case 14:
-            return gui_create_terminal((const char*)a1, (int)a2, (int)a3, (int)a4, (int)a5);
+            return gui_create_terminal((const char*)a1, (int)a4, (int)a5);
 
         case 15:
             gui_clear_terminal();
@@ -117,7 +117,7 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
             return vfs_exists((const char*)a1) ? 1 : 0;
 
         case 20:
-            return gui_create((const char*)a1, (int)a2, (int)a3, (int)a4, (int)a5);
+            return gui_create((const char*)a1, (int)a4, (int)a5);
 
         case 21:
             return 0; // unused
