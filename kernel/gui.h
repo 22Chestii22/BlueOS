@@ -5,6 +5,13 @@
 
 #define GUI_MAX_WINDOWS 4
 #define GUI_MAX_BUTTONS 4
+#define GUI_EVENT_QUEUE_SIZE 16
+
+typedef struct {
+    int type;
+    int mx, my;
+    int buttons;
+} gui_event_t;
 
 #define GUI_MENU_HEIGHT 18
 #define GUI_STATUS_HEIGHT 18
@@ -49,6 +56,9 @@ typedef struct {
     int drag_off_x, drag_off_y;
     int drag_outline_x, drag_outline_y;
     void (*on_content_click)(int win_id, int mx, int my);
+    gui_event_t event_queue[GUI_EVENT_QUEUE_SIZE];
+    int event_head;
+    int event_tail;
 } gui_window_t;
 
 void gui_init(void);
@@ -66,6 +76,7 @@ void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h);
 int gui_create_terminal(const char* title, int x, int y, int w, int h);
 int gui_get_terminal(void);
 void gui_clear_terminal(void);
+int gui_get_event(int win_id, gui_event_t* ev);
 
 extern volatile int cmd_should_exit;
 

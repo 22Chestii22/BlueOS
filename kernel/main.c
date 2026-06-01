@@ -16,7 +16,6 @@
 #include "vga.h"
 #include "fb.h"
 #include "gui.h"
-#include "scout.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -144,6 +143,8 @@ void kernel_main(void* mbd, uint32_t magic)
         screen_write("  BPP:     "); screen_write_dec(fb_bpp); screen_write("\n");
 
         fb_init(fb_addr, fb_width, fb_height, fb_pitch, fb_bpp);
+    kernel_api.fb_width = fb_width;
+    kernel_api.fb_height = fb_height;
     }
     else
     {
@@ -164,7 +165,7 @@ void kernel_main(void* mbd, uint32_t magic)
 
     scheduler_init();
     process_create("gui_render", (uint64_t)gui_render_task, 0);
-    process_create("scout", (uint64_t)scout_run, 0);
+    pe_spawn("\\SYSTEM\\PROGRAMS\\SCOUT.EXE");
     process_create("idle", (uint64_t)idle_task, 0);
 
     process_t* first = process_get_ready();

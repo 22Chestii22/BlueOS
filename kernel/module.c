@@ -8,6 +8,7 @@
 #include "ata.h"
 #include "vfs.h"
 #include "elf_loader.h"
+#include "fb.h"
 
 static char (*registered_keyb_getchar)(void) = NULL;
 static uint64_t (*registered_timer_get_ticks)(void) = NULL;
@@ -53,6 +54,9 @@ kernel_api_t kernel_api =
     .register_timer_get_ticks = reg_timer,
     .ata_read_sectors = ata_read_sectors,
     .ata_write_sectors = ata_write_sectors,
+
+    .fb_width = 0,
+    .fb_height = 0,
 };
 
 char keyb_getchar_wrapper(void)

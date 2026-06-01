@@ -1,6 +1,5 @@
 #include "types.h"
 #include "kernel_api.h"
-#include "fb.h"
 
 static kernel_api_t* api = NULL;
 
@@ -94,9 +93,9 @@ void mouse_handler(void)
             mouse_y += dy;
 
             if (mouse_x < 0) mouse_x = 0;
-            if ((uint32_t)mouse_x >= fb_info.width) mouse_x = fb_info.width - 1;
+            if (api && (uint32_t)mouse_x >= api->fb_width) mouse_x = api->fb_width - 1;
             if (mouse_y < 0) mouse_y = 0;
-            if ((uint32_t)mouse_y >= fb_info.height) mouse_y = fb_info.height - 1;
+            if (api && (uint32_t)mouse_y >= api->fb_height) mouse_y = api->fb_height - 1;
 
             mouse_packet_index = 0;
             break;
@@ -152,10 +151,10 @@ void mouse_module_init(kernel_api_t* kapi)
 
     mouse_init_done = 0;
 
-    if (fb_info.width > 0 && fb_info.height > 0)
+    if (api->fb_width > 0 && api->fb_height > 0)
     {
-        mouse_x = fb_info.width / 2;
-        mouse_y = fb_info.height / 2;
+        mouse_x = api->fb_width / 2;
+        mouse_y = api->fb_height / 2;
     }
 
     api->irq_install_handler(12, (void*)mouse_handler);

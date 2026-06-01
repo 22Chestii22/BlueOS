@@ -457,6 +457,18 @@ static void handle_click(void)
             w->on_content_click(i, mx, my);
             return;
         }
+        {
+            int nx = w->event_tail + 1;
+            if (nx == GUI_EVENT_QUEUE_SIZE) nx = 0;
+            if (nx != w->event_head)
+            {
+                w->event_queue[w->event_tail].type = 1;
+                w->event_queue[w->event_tail].mx = mx;
+                w->event_queue[w->event_tail].my = my;
+                w->event_queue[w->event_tail].buttons = mouse_get_buttons();
+                w->event_tail = nx;
+            }
+        }
         return;
     }
 }
@@ -535,6 +547,8 @@ int gui_create(const char* title, int x, int y, int w, int h)
     win->cursor_y = 0;
     win->num_buttons = 0;
     win->dragging = 0;
+    win->event_head = 0;
+    win->event_tail = 0;
 
     if (win->cw < 1) win->cw = 1;
     if (win->ch < 1) win->ch = 1;
@@ -734,4 +748,22 @@ void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h)
     if (y) *y = windows[win_id].y;
     if (w) *w = windows[win_id].w;
     if (h) *h = windows[win_id].h;
+}
+
+int gui_get_event(int win_id, gui_event_t* ev)
+{
+    if (win_id < 0 || win_id >= num_windows) return 0;
+    gui_window_t* w = &windows[win_id];
+    if (w->event_head == w->event_tail) return 0;
+    if (ev)
+    {
+        ev->type = w->event_queue[w->event_head].type;
+        ev->mx = w->event_queue[w->event_head].mx;
+        ev->my = w->event_queue[w->event_head].my;
+        ev->buttons = w->event_queue[w->event_head].buttons;
+    }
+    int type = w->event_queue[w->event_head].type;
+    w->event_head++;
+    if (w->event_head == GUI_EVENT_QUEUE_SIZE) w->event_head = 0;
+    return type;
 }

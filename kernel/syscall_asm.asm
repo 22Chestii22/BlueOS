@@ -8,6 +8,7 @@ BITS 64
 ; All other registers preserved.
 
 extern handle_syscall
+extern yield_from_user_syscall
 
 global syscall_stub_handler
 syscall_stub_handler:
@@ -31,6 +32,9 @@ syscall_stub_handler:
     push rbx
     push rax
 
+    cmp rax, 28
+    je .yield
+
     mov rdi, rax
     mov rsi, [rsp + 40]
     mov rdx, [rsp + 32]
@@ -40,6 +44,7 @@ syscall_stub_handler:
     call handle_syscall
 
     mov [rsp], rax
+.restore_and_return:
     pop rax
     pop rbx
     pop rcx
@@ -59,3 +64,9 @@ syscall_stub_handler:
     mov rsp, gs:0x10
     swapgs
     o64 sysret
+
+.yield:
+    call yield_from_user_syscall
+    ; If yield_from_user_syscall returns, no other process was ready
+    ; Fall through to restore_and_return for normal syscall return
+    jmp .restore_and_return

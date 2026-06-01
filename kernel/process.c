@@ -103,32 +103,23 @@ uint32_t process_create(const char* name, uint64_t entry, int user)
     if (user)
     {
         printf("[PROC:CREATE] allocating user stack...\n");
-        uint64_t page = (uint64_t)malloc(0x200000);
-        if (!page) { free(proc->kernel_stack); free(proc->context); return 0; }
-        proc->user_stack = page + 0x200000;
-        printf("[PROC:CREATE] user_stack page=0x%x\n", page);
 
         printf("[PROC:CREATE] creating PML4...\n");
         uint64_t pml4 = paging_create_pml4();
         proc->page_table = pml4;
         printf("[PROC:CREATE] PML4=0x%x\n", pml4);
 
-        uint64_t stack_phys = (uint64_t)page;
         uint64_t stack_virt = 0x70000000ULL;
         printf("[PROC:CREATE] mapping stack...\n");
         for (uint64_t off = 0; off < 0x200000; off += 0x1000)
-            paging_map_user(pml4, stack_virt + off, stack_phys + off, 0x007);
+        {
+            uint64_t stack_phys = paging_alloc_frame();
+            paging_map_user(pml4, stack_virt + off, stack_phys, 0x007);
+        }
+        proc->user_stack = stack_virt + 0x200000;
         printf("[PROC:CREATE] stack mapped\n");
 
-        uint64_t code_phys = (uint64_t)entry & ~0xFFF;
-        uint64_t code_virt = 0x00400000ULL;
-        printf("[PROC:CREATE] mapping code: code_phys=0x%x code_virt=0x%x\n", code_phys, code_virt);
-        for (uint64_t off = 0; off < 0x200000; off += 0x1000)
-            paging_map_user(pml4, code_virt + off, code_phys + off, 0x005);
-        printf("[PROC:CREATE] code mapped\n");
-
-        uint64_t entry_offset = (uint64_t)entry - code_phys;
-        proc->context->rip = code_virt + entry_offset;
+        proc->context->rip = entry;
         proc->context->cs = 0x23;
         proc->context->rsp = stack_virt + 0x200000;
         proc->context->ss = 0x1B;

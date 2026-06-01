@@ -173,6 +173,105 @@ yield_to_scheduler:
     pop rax
     ret
 
+; yield_from_user_syscall(void)
+; Called from syscall_stub_handler for syscall 28 (yield from user mode).
+; Builds a correct context frame with user-mode CS=0x23, SS=0x1B,
+; user RIP (from saved rcx), user RFLAGS (from saved r11), user RSP (gs:0x10),
+; and calls yield_handler to schedule the next process.
+global yield_from_user_syscall
+yield_from_user_syscall:
+    ; Stack at entry (from stub's 15 pushes + return addr from call):
+    ; [rsp+0]   = return address (to stub)
+    ; [rsp+8]   = rax=28      (user rax = syscall number)
+    ; [rsp+16]  = rbx         (user rbx)
+    ; [rsp+24]  = rcx=RIP     (user RIP, saved by syscall)
+    ; [rsp+32]  = rdx         (user rdx)
+    ; [rsp+40]  = rsi         (user rsi)
+    ; [rsp+48]  = rdi         (user rdi)
+    ; [rsp+56]  = rbp         (user rbp)
+    ; [rsp+64]  = r8          (user r8)
+    ; [rsp+72]  = r9          (user r9)
+    ; [rsp+80]  = r10         (user r10)
+    ; [rsp+88]  = r11=RFLAGS  (user RFLAGS, saved by syscall)
+    ; [rsp+96]  = r12         (user r12)
+    ; [rsp+104] = r13         (user r13)
+    ; [rsp+112] = r14         (user r14)
+    ; [rsp+120] = r15         (user r15)
+
+    ; Allocate frame area (20 qwords = 160 bytes)
+    sub rsp, 20*8
+
+    ; Reference to old stack: [rsp + 160 + 8 + offset]
+    ; = [rsp + 168 + offset]
+    ; where offset is: rax=0, rbx=8, rcx=RIP=16, rdx=24, rsi=32,
+    ; rdi=40, rbp=48, r8=56, r9=64, r10=72, r11=RFLAGS=80,
+    ; r12=88, r13=96, r14=104, r15=112
+
+    ; Get user RSP from GS base (saved by syscall_stub_handler)
+    swapgs
+    push gs:0x10
+    swapgs
+    pop r10                     ; r10 = user RSP
+
+    ; Build frame in yield_handler format:
+    ; [RIP, CS, RFLAGS, RSP, SS, r15, r14, ..., rax]
+
+    ; frame[0] = user RIP
+    mov rax, [rsp + 168 + 16]
+    mov [rsp + 0], rax
+
+    mov qword [rsp + 8], 0x23   ; frame[1] = CS (ring 3)
+
+    ; frame[2] = user RFLAGS
+    mov rax, [rsp + 168 + 80]
+    mov [rsp + 16], rax
+
+    mov [rsp + 24], r10         ; frame[3] = user RSP
+
+    mov qword [rsp + 32], 0x1B  ; frame[4] = SS (ring 3)
+
+    ; frame[5] = r15 ... frame[14] = rdi
+    mov rax, [rsp + 168 + 112]  ; r15
+    mov [rsp + 40], rax
+    mov rax, [rsp + 168 + 104]  ; r14
+    mov [rsp + 48], rax
+    mov rax, [rsp + 168 + 96]   ; r13
+    mov [rsp + 56], rax
+    mov rax, [rsp + 168 + 88]   ; r12
+    mov [rsp + 64], rax
+    mov rax, [rsp + 168 + 80]   ; r11 = RFLAGS
+    mov [rsp + 72], rax
+    mov rax, [rsp + 168 + 72]   ; r10
+    mov [rsp + 80], rax
+    mov rax, [rsp + 168 + 64]   ; r9
+    mov [rsp + 88], rax
+    mov rax, [rsp + 168 + 56]   ; r8
+    mov [rsp + 96], rax
+    mov rax, [rsp + 168 + 48]   ; rbp
+    mov [rsp + 104], rax
+    mov rax, [rsp + 168 + 40]   ; rdi
+    mov [rsp + 112], rax
+    mov rax, [rsp + 168 + 32]   ; rsi
+    mov [rsp + 120], rax
+    mov rax, [rsp + 168 + 24]   ; rdx
+    mov [rsp + 128], rax
+    mov rax, [rsp + 168 + 16]   ; rcx = user RIP
+    mov [rsp + 136], rax
+    mov rax, [rsp + 168 + 8]    ; rbx
+    mov [rsp + 144], rax
+    mov rax, [rsp + 168 + 0]    ; rax = 28
+    mov [rsp + 152], rax
+
+    ; Call yield_handler with rdi pointing to frame
+    mov rdi, rsp
+    call yield_handler
+
+    ; yield_handler returns only if no other process is ready.
+    ; Clean up and return to stub for normal syscall return.
+    add rsp, 20*8
+    ret
+
+
 ; switch_to_user_mode(uint64_t entry, uint64_t user_stack)
 ; rdi = entry point (user virtual address)
 ; rsi = user stack top

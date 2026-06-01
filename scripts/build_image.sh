@@ -42,6 +42,10 @@ if command -v mformat &> /dev/null; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/cmd/cmd.exe" ::/SYSTEM/PROGRAMS/CMD.EXE
         echo "  CMD.EXE"
     fi
+    if [ -f "$PROJECT_ROOT/programs/scout/scout.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/scout/scout.exe" ::/SYSTEM/PROGRAMS/SCOUT.EXE
+        echo "  SCOUT.EXE"
+    fi
 
     # Copy loadable modules
     echo "Copying modules..."
@@ -90,6 +94,10 @@ else
     if [ -f "$PROJECT_ROOT/programs/cmd/cmd.exe" ]; then
         sudo cp "$PROJECT_ROOT/programs/cmd/cmd.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/CMD.EXE
         echo "  CMD.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/scout/scout.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/scout/scout.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/SCOUT.EXE
+        echo "  SCOUT.EXE"
     fi
 
     echo "Copying modules..."

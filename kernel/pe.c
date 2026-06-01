@@ -341,15 +341,93 @@ int pe_load_and_exec(const char* path, const char* args)
 
 int pe_spawn(const char* path)
 {
-    uint64_t entry_point = 0;
-    uint64_t image_base = 0;
+    int fd = vfs_open(path, 0);
+    if (fd < 0) return -1;
 
-    if (load_pe_image(path, &entry_point, &image_base) != 0)
-        return -1;
+    void* file_data = malloc(65536);
+    if (!file_data) { vfs_close(fd); return -1; }
+    int file_size = vfs_read(fd, file_data, 65536);
+    vfs_close(fd);
+    if (file_size <= 0) { free(file_data); return -1; }
 
-    uint32_t pid = syscall_exec(entry_point, path);
-    if (pid == 0) return -1;
+    dos_header_t* dos = (dos_header_t*)file_data;
+    if (dos->e_magic != 0x5A4D) { free(file_data); return -1; }
+    if (dos->e_lfanew + sizeof(coff_header_t) + 4 > (uint32_t)file_size) { free(file_data); return -1; }
 
+    coff_header_t* coff = (coff_header_t*)((uint64_t)file_data + dos->e_lfanew);
+    if (coff->signature != 0x00004550) { free(file_data); return -1; }
+    if (coff->machine != PE_MACHINE_AMD64) { free(file_data); return -1; }
+
+    uint64_t opt_off = (uint64_t)coff + sizeof(coff_header_t);
+    if (opt_off + sizeof(optional_header64_t) > (uint64_t)file_data + file_size) { free(file_data); return -1; }
+    optional_header64_t* opt = (optional_header64_t*)opt_off;
+    if (opt->magic != PE_MAGIC_PE32P) { free(file_data); return -1; }
+
+    uint64_t image_base = opt->image_base;
+    uint64_t entry_rva = opt->address_of_entry_point;
+    uint32_t image_size = opt->size_of_image;
+
+    void* image = malloc(image_size);
+    if (!image) { free(file_data); return -1; }
+    memset(image, 0, image_size);
+
+    uint32_t hdr_size = opt->size_of_headers;
+    if (hdr_size > (uint32_t)file_size) hdr_size = file_size;
+    if (hdr_size > image_size) hdr_size = image_size;
+    memcpy(image, file_data, hdr_size);
+
+    uint64_t sec_off = (uint64_t)opt + coff->size_of_optional_header;
+    if (sec_off + coff->number_of_sections * sizeof(section_header_t) > (uint64_t)file_data + file_size)
+    {
+        free(file_data); free(image); return -1;
+    }
+    section_header_t* sections = (section_header_t*)sec_off;
+
+    for (int i = 0; i < coff->number_of_sections; i++)
+    {
+        if (sections[i].pointer_to_raw_data && sections[i].size_of_raw_data)
+        {
+            uint64_t dest = (uint64_t)image + sections[i].virtual_address;
+            uint64_t src = (uint64_t)file_data + sections[i].pointer_to_raw_data;
+            uint32_t copy_size = sections[i].size_of_raw_data;
+            if (dest + copy_size > (uint64_t)image + image_size)
+                copy_size = (uint64_t)image + image_size - dest;
+            if (src + copy_size > (uint64_t)file_data + file_size)
+                copy_size = (uint64_t)file_data + file_size - src;
+            if (copy_size > 0)
+                memcpy((void*)dest, (void*)src, copy_size);
+        }
+    }
+
+    free(file_data);
+
+    uint64_t virt_entry = image_base + entry_rva;
+    uint32_t pid = syscall_exec(virt_entry, path);
+
+    process_t* proc = process_get_by_pid(pid);
+    if (!proc || !proc->page_table)
+    {
+        free(image);
+        return pid > 0 ? (int)pid : -1;
+    }
+
+    uint64_t pml4 = proc->page_table;
+    uint64_t image_end = image_base + image_size;
+
+    for (uint64_t va = image_base & ~0xFFF; va < image_end; va += 0x1000)
+    {
+        uint64_t phys = paging_alloc_frame();
+        memset((void*)phys, 0, 0x1000);
+        uint64_t buf_off = va - image_base;
+        uint32_t copy = 0x1000;
+        if (buf_off + copy > image_size)
+            copy = image_size - buf_off;
+        if (copy > 0)
+            memcpy((void*)phys, (uint8_t*)image + buf_off, copy);
+        paging_map_user(pml4, va, phys, 0x007);
+    }
+
+    free(image);
     return (int)pid;
 }
 

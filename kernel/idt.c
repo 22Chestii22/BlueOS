@@ -181,6 +181,33 @@ void isr_handler(int num, uint64_t error_code, uint64_t rip)
     }
     serial_write("\n");
 
+    if (num == 14)
+    {
+        uint64_t cr2 = read_cr2();
+        uint64_t cr3_val = read_cr3();
+        serial_write("PML4 dump for CR2:\n");
+        uint64_t* pml4 = (uint64_t*)cr3_val;
+        uint64_t pml4e = (cr2 >> 39) & 0x1FF;
+        serial_write("  PML4["); serial_dec(pml4e); serial_write("]="); serial_hex(pml4[pml4e]); serial_write("\n");
+        if (pml4[pml4e] & 1) {
+            uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & ~0xFFF);
+            uint64_t pdpte = (cr2 >> 30) & 0x1FF;
+            serial_write("  PDPT["); serial_dec(pdpte); serial_write("]="); serial_hex(pdpt[pdpte]); serial_write("\n");
+            if (pdpt[pdpte] & 1) {
+                uint64_t* pd = (uint64_t*)(pdpt[pdpte] & ~0xFFF);
+                uint64_t pde = (cr2 >> 21) & 0x1FF;
+                serial_write("  PD["); serial_dec(pde); serial_write("]="); serial_hex(pd[pde]); serial_write("\n");
+                if ((pd[pde] & 1) && !(pd[pde] & (1ULL << 7))) {
+                    uint64_t* pt = (uint64_t*)(pd[pde] & ~0xFFF);
+                    uint64_t pte_i = (cr2 >> 12) & 0x1FF;
+                    serial_write("  PT["); serial_dec(pte_i); serial_write("]="); serial_hex(pt[pte_i]); serial_write("\n");
+                } else if (pd[pde] & (1ULL << 7)) {
+                    serial_write("  (2MB huge page)\n");
+                }
+            }
+        }
+    }
+
     fb_bsod_panic(num, error_code, rip);
 
     screen_set_color(COLOR_WHITE, COLOR_BLUE);

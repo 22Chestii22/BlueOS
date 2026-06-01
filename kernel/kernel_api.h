@@ -39,6 +39,9 @@ typedef struct
     void (*register_timer_get_ticks)(uint64_t (*func)(void));
     int (*ata_read_sectors)(int io_base, int master, uint32_t lba, uint8_t count, void* buffer);
     int (*ata_write_sectors)(int io_base, int master, uint32_t lba, uint8_t count, const void* buffer);
+
+    uint32_t fb_width;
+    uint32_t fb_height;
 } kernel_api_t;
 
 #endif

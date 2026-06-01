@@ -116,6 +116,52 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
         case 19:
             return vfs_exists((const char*)a1) ? 1 : 0;
 
+        case 20:
+            return gui_create((const char*)a1, (int)a2, (int)a3, (int)a4, (int)a5);
+
+        case 21:
+            return 0; // unused
+
+        case 22:
+            gui_puts((int)a1, (const char*)a2);
+            return 0;
+
+        case 23:
+            gui_putchar((int)a1, (char)a2);
+            return 0;
+
+        case 24:
+            gui_clear((int)a1);
+            return 0;
+
+        case 25:
+            gui_set_title((int)a1, (const char*)a2);
+            return 0;
+
+        case 26:
+        {
+            int rect[4];
+            gui_get_window_rect((int)a1, &rect[0], &rect[1], &rect[2], &rect[3]);
+            if (a2)
+                memcpy((void*)a2, rect, sizeof(rect));
+            return 0;
+        }
+
+        case 27:
+        {
+            gui_event_t ev;
+            int t = gui_get_event((int)a1, &ev);
+            if (t && a2)
+            {
+                memcpy((void*)a2, &ev, sizeof(ev));
+            }
+            return t;
+        }
+
+        case 28:
+            yield_to_scheduler();
+            return 0;
+
         default:
             printf("[SYSCALL] Unknown syscall %d\n", (int)n);
             return -1;

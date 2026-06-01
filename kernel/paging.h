@@ -12,5 +12,6 @@ int paging_map_user(uint64_t pml4_phys, uint64_t virt, uint64_t phys, uint64_t f
 void paging_switch(uint64_t cr3);
 uint32_t paging_get_total_frames(void);
 uint32_t paging_get_used_frames(void);
+uint64_t paging_alloc_frame(void);
 
 #endif

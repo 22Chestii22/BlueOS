@@ -70,6 +70,11 @@ static void free_frame(uint32_t addr)
         frame_bitmap[frame / 32] &= ~(1 << (frame % 32));
 }
 
+uint64_t paging_alloc_frame(void)
+{
+    return alloc_frame();
+}
+
 void paging_init(uint64_t mem_size)
 {
     __asm__ volatile("mov %%cr3, %0" : "=r"(kernel_cr3));
@@ -176,7 +181,7 @@ uint64_t paging_create_pml4(void)
     {
         new_pml4[i] = pml4[i];
         if (new_pml4[i] & 1)
-            new_pml4[i] |= 0x04;
+            new_pml4[i] |= 0x06;
     }
 
     return page;
@@ -202,7 +207,7 @@ int paging_map_user(uint64_t pml4_phys, uint64_t virt, uint64_t phys, uint64_t f
     else
     {
         pdpt = (uint64_t*)(pml4[pml4_entry] & ~0xFFF);
-        pml4[pml4_entry] |= 0x04;
+        pml4[pml4_entry] |= 0x06;
     }
 
     uint64_t* pd;
@@ -216,7 +221,7 @@ int paging_map_user(uint64_t pml4_phys, uint64_t virt, uint64_t phys, uint64_t f
     else
     {
         pd = (uint64_t*)(pdpt[pdpt_entry] & ~0xFFF);
-        pdpt[pdpt_entry] |= 0x04;
+        pdpt[pdpt_entry] |= 0x06;
     }
 
     uint64_t* pt;
