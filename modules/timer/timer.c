@@ -50,18 +50,9 @@ void timer_handler_and_schedule(context_t* frame)
         return;
     }
 
-    if ((frame->cs & 3) == 0)
-    {
-        uint64_t actual_rsp = (uint64_t)(frame) + 18 * 8;
-        frame->rsp = actual_rsp;
-        frame->ss = 0x10;
-    }
-
     uint64_t* ctx = (uint64_t*)current->context;
     uint64_t* frm = (uint64_t*)frame;
-    for (int i = 0; i < 15; i++)
-        ctx[i] = frm[14 - i];
-    for (int i = 15; i < 20; i++)
+    for (int i = 0; i < 20; i++)
         ctx[i] = frm[i];
 
     next->state = PROCESS_RUNNING;
