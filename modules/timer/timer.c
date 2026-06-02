@@ -84,8 +84,10 @@ uint64_t timer_get_ticks(void)
 void timer_sleep(uint64_t ms)
 {
     uint64_t start = tick_count;
-    while (tick_count - start < ms);
+    while (tick_count - start < ms)
+        yield_to_scheduler();
 }
+
 
 void timer_scheduler_enable(void)
 {

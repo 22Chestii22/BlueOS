@@ -87,26 +87,29 @@ uint32_t fb_getpixel(uint32_t x, uint32_t y)
 
 void fb_fillrect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color)
 {
+    if (x >= fb_info.width || y >= fb_info.height || w == 0 || h == 0) return;
+    if (x + w > fb_info.width) w = fb_info.width - x;
+    if (y + h > fb_info.height) h = fb_info.height - y;
+
     if (backbuffer)
     {
         uint32_t stride = fb_info.pitch / 4;
         for (uint32_t row = 0; row < h; row++)
         {
             uint32_t yy = y + row;
-            if (yy >= fb_info.height) break;
+            uint32_t* line = &backbuffer[yy * stride + x];
             for (uint32_t col = 0; col < w; col++)
-            {
-                uint32_t xx = x + col;
-                if (xx >= fb_info.width) break;
-                backbuffer[yy * stride + xx] = color;
-            }
+                line[col] = color;
         }
     }
     else
     {
         for (uint32_t row = 0; row < h; row++)
+        {
+            uint32_t yy = y + row;
             for (uint32_t col = 0; col < w; col++)
-                putpixel_raw(x + col, y + row, color);
+                putpixel_raw(x + col, yy, color);
+        }
     }
 }
 
@@ -192,11 +195,7 @@ void fb_drawstring(int x, int y, const char* str, uint32_t fg, uint32_t bg)
 void fb_blit(void)
 {
     if (!backbuffer) return;
-    uint32_t count = (fb_info.height * fb_info.pitch) / 4;
-    volatile uint32_t* dst = (volatile uint32_t*)(unsigned long)fb_info.addr;
-    uint32_t* src = backbuffer;
-    for (uint32_t i = 0; i < count; i++)
-        dst[i] = src[i];
+    memcpy((void*)(unsigned long)fb_info.addr, backbuffer, fb_info.height * fb_info.pitch);
 }
 
 void fb_clear(uint32_t color)

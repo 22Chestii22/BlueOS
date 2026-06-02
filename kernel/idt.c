@@ -81,33 +81,7 @@ static uint64_t read_cr2(void)
     return cr2;
 }
 
-static void serial_hex(uint64_t val)
-{
-    const char* hex = "0123456789ABCDEF";
-    char buf[17];
-    buf[16] = 0;
-    for (int i = 15; i >= 0; i--)
-    {
-        buf[i] = hex[val & 0xF];
-        val >>= 4;
-    }
-    serial_write(buf);
-}
 
-static void serial_dec(uint64_t val)
-{
-    char buf[21];
-    int i = 20;
-    buf[20] = 0;
-    if (val == 0) { serial_write("0"); return; }
-    while (val > 0 && i > 0)
-    {
-        i--;
-        buf[i] = '0' + (val % 10);
-        val /= 10;
-    }
-    serial_write(buf + i);
-}
 
 static uint64_t read_cr0(void)
 {

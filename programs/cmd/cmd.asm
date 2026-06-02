@@ -14,6 +14,8 @@ SYSCALL_PE_CHECK    equ 17
 SYSCALL_EXEC_WAIT   equ 18
 SYSCALL_EXISTS      equ 19
 SYSCALL_GUI_PUTS    equ 22
+SYSCALL_YIELD       equ 28
+SYSCALL_KEY_AVAIL   equ 32
 
 CMD_LINE_MAX  equ 512
 CUR_DIR_MAX   equ 256
@@ -61,7 +63,7 @@ main_loop:
 print_str:
     mov rax, SYSCALL_GUI_PUTS
     mov rsi, rdi
-    mov rdi, [rel cmd_win]
+    mov edi, [rel cmd_win]
     syscall
     ret
 
@@ -135,6 +137,15 @@ read_line:
     xor ebx, ebx
 
 .rl_loop:
+    mov rax, SYSCALL_KEY_AVAIL
+    syscall
+    test rax, rax
+    jnz .rl_have_key
+    mov rax, SYSCALL_YIELD
+    syscall
+    jmp .rl_loop
+
+.rl_have_key:
     mov rax, SYSCALL_GETCHAR
     syscall
     cmp al, 13
@@ -145,11 +156,11 @@ read_line:
     je .rl_bs
     cmp al, 127
     je .rl_bs
-    cmp bl, CMD_LINE_MAX - 2
+    cmp ebx, CMD_LINE_MAX - 2
     jae .rl_loop
 
     mov [r12 + rbx], al
-    inc bl
+    inc ebx
 
     push rdi
     lea rdi, [rel echobuf]
@@ -160,9 +171,9 @@ read_line:
     jmp .rl_loop
 
 .rl_bs:
-    cmp bl, 0
+    cmp ebx, 0
     je .rl_loop
-    dec bl
+    dec ebx
     push rdi
     lea rdi, [rel bs_str]
     call print_str
@@ -172,7 +183,7 @@ read_line:
 .rl_done:
     mov byte [r12 + rbx], 0
     call print_crlf
-    test bl, bl
+    test ebx, ebx
     jz .rl_empty
     clc
     pop r12
@@ -838,8 +849,7 @@ parse_and_exec:
 .do_pause:
     lea rdi, [rel pause_str_text]
     call print_str
-    mov rax, SYSCALL_GETCHAR
-    syscall
+    call wait_key
     call print_crlf
     jmp .done
 
@@ -854,6 +864,19 @@ parse_and_exec:
     pop r13
     pop r12
     pop rbx
+    ret
+
+wait_key:
+    mov rax, SYSCALL_KEY_AVAIL
+    syscall
+    test rax, rax
+    jnz .have_key
+    mov rax, SYSCALL_YIELD
+    syscall
+    jmp wait_key
+.have_key:
+    mov rax, SYSCALL_GETCHAR
+    syscall
     ret
 
 ; ============================================================

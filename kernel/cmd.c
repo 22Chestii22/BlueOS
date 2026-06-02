@@ -1231,9 +1231,8 @@ void cmd_run(void)
     int pos = 0;
     char prompt[64];
 
-    timer_start();
-    timer_scheduler_enable();
     env_init();
+
 
     run_batch("\\SYSTEM\\AUTOEXEC.BAT");
 

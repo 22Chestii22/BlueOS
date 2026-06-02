@@ -66,6 +66,9 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
         case 10:
             return keyb_getchar();
 
+        case 32:
+            return keyb_char_avail();
+
         case 11:
             screen_clear();
             return 0;

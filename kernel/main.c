@@ -22,6 +22,7 @@ extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
 extern void scheduler_init(void);
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
+extern uint64_t cpu_data[4];
 
 extern void mouse_module_init(kernel_api_t* api);
 
@@ -148,8 +149,9 @@ void kernel_main(void* mbd, uint32_t magic)
 
     scheduler_init();
     timer_start();
+    timer_scheduler_enable();
     pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
-    pe_spawn("\\SYSTEM\\PROGRAMS\\SCOUT.EXE");
+    pe_spawn("\\SYSTEM\\PROGRAMS\\CMD.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
 
     process_t* first = process_get_ready();
@@ -159,6 +161,7 @@ void kernel_main(void* mbd, uint32_t magic)
         first->state = PROCESS_RUNNING;
         process_set_current(first);
         gdt_set_kernel_stack(kstack);
+        cpu_data[3] = kstack;
         if (first->page_table)
             paging_switch(first->page_table);
         context_activate(first->context, kstack);

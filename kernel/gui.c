@@ -65,10 +65,9 @@ typedef struct {
 } desktop_icon_t;
 
 static desktop_icon_t desktop_icons[] = {
-    {"Scout", "\\SYSTEM\\PROGRAMS\\SCOUT.EXE", 20, 60, 64, 72},
-    {"CMD",   "\\SYSTEM\\PROGRAMS\\CMD.EXE",   100, 60, 64, 72},
+    {"CMD",   "\\SYSTEM\\PROGRAMS\\CMD.EXE",   20, 60, 64, 72},
 };
-static int num_desktop_icons = 2;
+static int num_desktop_icons = 1;
 
 int gui_create_terminal(const char* title, int w, int h)
 {

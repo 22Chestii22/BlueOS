@@ -73,9 +73,7 @@ context_activate:
     ret
 
 .ring3:
-    swapgs
-    mov gs:0x18, rsi
-    swapgs
+    cli
     mov rsp, rsi
     push qword [rdi + 19*8]
     push qword [rdi + 18*8]

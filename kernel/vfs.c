@@ -184,7 +184,12 @@ int vfs_exists(const char* path)
     for (int i = 0; i < num_filesystems; i++)
     {
         int result = filesystems[i].open(&filesystems[i], path, 0);
-        if (result >= 0) return 1;
+        if (result >= 0)
+        {
+            filesystems[i].close(&filesystems[i], result);
+            return 1;
+        }
     }
     return 0;
 }
+

@@ -1,6 +1,7 @@
 #include "types.h"
 #include "string.h"
 #include "screen.h"
+
 #include "process.h"
 #include "scheduler.h"
 #include "mem.h"
@@ -73,6 +74,26 @@ static void remove_from_ready_queue(process_t* proc)
     }
 }
 
+void process_cleanup(process_t* proc)
+{
+    if (!proc) return;
+    if (proc->kernel_stack)
+    {
+        free(proc->kernel_stack);
+        proc->kernel_stack = NULL;
+    }
+    if (proc->context)
+    {
+        free(proc->context);
+        proc->context = NULL;
+    }
+    if (proc->page_table)
+    {
+        paging_free_pml4(proc->page_table);
+        proc->page_table = 0;
+    }
+}
+
 uint32_t process_create(const char* name, uint64_t entry, int user)
 {
     printf("[PROC:CREATE] name=%s entry=0x%x user=%d\n", name, entry, user);
@@ -81,6 +102,10 @@ uint32_t process_create(const char* name, uint64_t entry, int user)
     if (!proc) return 0;
     printf("[PROC:CREATE] slot found\n");
 
+    if (proc->state == PROCESS_TERMINATED)
+    {
+        process_cleanup(proc);
+    }
     memset(proc, 0, sizeof(process_t));
     strncpy(proc->name, name, PROCESS_NAME_MAX - 1);
     proc->pid = next_pid++;
@@ -162,10 +187,7 @@ int process_kill(uint32_t pid)
     proc->state = PROCESS_TERMINATED;
     proc->exit_code = -1;
 
-    if (proc->kernel_stack)
-        free(proc->kernel_stack);
-    if (proc->context)
-        free(proc->context);
+    process_cleanup(proc);
 
     return 0;
 }
@@ -230,18 +252,11 @@ extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 extern uint64_t kernel_cr3;
 extern uint64_t cpu_data[4];
 
-// Called from yield_to_scheduler assembly.
-// Copies saved context frame to current->context, yields, and activates next ready process.
-// Returns if no other process is ready (caller cleans up stack frame and resumes).
 void yield_handler(context_t* frame)
 {
     process_t* current = process_get_current();
     if (!current) return;
 
-    // Copy frame to current->context.
-    // Stack frame layout: [rip, cs, rflags, rsp, ss, r15, r14, ..., rax]
-    // context_t layout:   [r15, r14, ..., rax, rip, cs, rflags, rsp, ss]
-    // So frame[i] -> ctx[(i + 15) % 20]
     for (int i = 0; i < 20; i++)
         ((uint64_t*)current->context)[(i + 15) % 20] = ((uint64_t*)frame)[i];
 
@@ -275,6 +290,15 @@ void process_wait(uint32_t pid)
 {
     while (process_is_alive(pid))
         yield_to_scheduler();
+
+    for (int i = 0; i < MAX_PROCESSES; i++)
+    {
+        if (process_table[i].pid == pid)
+        {
+            process_cleanup(&process_table[i]);
+            break;
+        }
+    }
 }
 
 void process_yield(void)

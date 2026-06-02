@@ -40,6 +40,7 @@ uint64_t kernel_cr3 = 0;
 
 static uint32_t* frame_bitmap = NULL;
 static uint32_t total_frames = 0;
+static uint32_t used_frames = 0;
 
 static uint32_t alloc_frame(void)
 {
@@ -49,6 +50,7 @@ static uint32_t alloc_frame(void)
         {
             frame_bitmap[i / 32] |= (1 << (i % 32));
             next_free_frame = i + 1;
+            used_frames++;
             return i * FRAME_SIZE;
         }
     }
@@ -58,6 +60,7 @@ static uint32_t alloc_frame(void)
         if (!(frame_bitmap[i / 32] & (1 << (i % 32))))
         {
             frame_bitmap[i / 32] |= (1 << (i % 32));
+            used_frames++;
             return i * FRAME_SIZE;
         }
     }
@@ -69,7 +72,14 @@ static void free_frame(uint32_t addr)
 {
     uint32_t frame = addr / FRAME_SIZE;
     if (frame < total_frames)
-        frame_bitmap[frame / 32] &= ~(1 << (frame % 32));
+    {
+        if (frame_bitmap[frame / 32] & (1 << (frame % 32)))
+        {
+            frame_bitmap[frame / 32] &= ~(1 << (frame % 32));
+            if (used_frames > 0)
+                used_frames--;
+        }
+    }
 }
 
 uint64_t paging_alloc_frame(void)
@@ -108,6 +118,13 @@ void paging_init(uint64_t mem_size)
         uint32_t f = addr / 0x1000;
         if (f < total_frames)
             frame_bitmap[f / 32] |= (1 << (f % 32));
+    }
+
+    used_frames = 0;
+    for (uint32_t i = 0; i < total_frames; i++)
+    {
+        if (frame_bitmap[i / 32] & (1 << (i % 32)))
+            used_frames++;
     }
 
     printf("[PAGING] Memory management initialized, %d MB available\n",
@@ -331,13 +348,48 @@ uint32_t paging_get_total_frames(void)
 
 uint32_t paging_get_used_frames(void)
 {
-    uint32_t used = 0;
-    for (uint32_t i = 0; i < total_frames; i++)
+    return used_frames;
+}
+
+void paging_free_pml4(uint64_t pml4_phys)
+{
+    if (pml4_phys == 0 || pml4_phys == kernel_cr3) return;
+    uint64_t* pml4 = (uint64_t*)pml4_phys;
+
+    for (int i = 0; i < 512; i++)
     {
-        if (frame_bitmap[i / 32] & (1 << (i % 32)))
-            used++;
+        if (!(pml4[i] & 1)) continue;
+
+        uint64_t* pdpt = (uint64_t*)(pml4[i] & ~0xFFF);
+        for (int j = 0; j < 512; j++)
+        {
+            if (!(pdpt[j] & 1)) continue;
+            if (pdpt[j] & (1 << 7)) continue;
+
+            uint64_t* pd = (uint64_t*)(pdpt[j] & ~0xFFF);
+            for (int k = 0; k < 512; k++)
+            {
+                if (!(pd[k] & 1)) continue;
+                if (pd[k] & (1 << 7)) continue;
+
+                uint64_t* pt = (uint64_t*)(pd[k] & ~0xFFF);
+                for (int l = 0; l < 512; l++)
+                {
+                    if (pt[l] & 1)
+                    {
+                        if (i < 256)
+                        {
+                            free_frame(pt[l] & ~0xFFF);
+                        }
+                    }
+                }
+                free_frame((uint32_t)(uint64_t)pt);
+            }
+            free_frame((uint32_t)(uint64_t)pd);
+        }
+        free_frame((uint32_t)(uint64_t)pdpt);
     }
-    return used;
+    free_frame((uint32_t)pml4_phys);
 }
 
 void paging_switch(uint64_t cr3)
