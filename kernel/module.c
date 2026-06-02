@@ -9,18 +9,84 @@
 #include "vfs.h"
 #include "elf_loader.h"
 #include "fb.h"
+#include "process.h"
+#include "paging.h"
+#include "gdt.h"
+
+extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
+extern void timer_handler_and_schedule(context_t* frame);
 
 static char (*registered_keyb_getchar)(void) = NULL;
+static int (*registered_keyb_char_avail)(void) = NULL;
 static uint64_t (*registered_timer_get_ticks)(void) = NULL;
+static void (*registered_timer_sched_handler)(context_t*) = NULL;
 
 static void reg_keyb(char (*func)(void))
 {
     registered_keyb_getchar = func;
 }
 
+static void reg_keyb_char_avail(int (*func)(void))
+{
+    registered_keyb_char_avail = func;
+}
+
 static void reg_timer(uint64_t (*func)(void))
 {
     registered_timer_get_ticks = func;
+}
+
+static void reg_timer_sched_handler(void (*handler)(context_t*))
+{
+    registered_timer_sched_handler = handler;
+}
+
+static uint64_t get_kernel_cr3(void)
+{
+    return kernel_cr3;
+}
+
+/* Mouse callback registration and wrappers */
+static int (*registered_mouse_get_x)(void) = NULL;
+static int (*registered_mouse_get_y)(void) = NULL;
+static uint8_t (*registered_mouse_get_buttons)(void) = NULL;
+static int (*registered_mouse_is_present)(void) = NULL;
+
+static void reg_mouse_get_x(int (*func)(void)) { registered_mouse_get_x = func; }
+static void reg_mouse_get_y(int (*func)(void)) { registered_mouse_get_y = func; }
+static void reg_mouse_get_buttons(uint8_t (*func)(void)) { registered_mouse_get_buttons = func; }
+static void reg_mouse_is_present(int (*func)(void)) { registered_mouse_is_present = func; }
+
+int mouse_get_x_wrapper(void)
+{
+    if (registered_mouse_get_x) return registered_mouse_get_x();
+    return 0;
+}
+
+int mouse_get_y_wrapper(void)
+{
+    if (registered_mouse_get_y) return registered_mouse_get_y();
+    return 0;
+}
+
+uint8_t mouse_get_buttons_wrapper(void)
+{
+    if (registered_mouse_get_buttons) return registered_mouse_get_buttons();
+    return 0;
+}
+
+int mouse_is_present_wrapper(void)
+{
+    if (registered_mouse_is_present) return registered_mouse_is_present();
+    return 0;
+}
+
+void timer_isr_dispatch(context_t* frame)
+{
+    if (registered_timer_sched_handler)
+        registered_timer_sched_handler(frame);
+    else
+        timer_handler_and_schedule(frame);
 }
 
 kernel_api_t kernel_api =
@@ -51,18 +117,46 @@ kernel_api_t kernel_api =
     .outl = outl,
     .irq_install_handler = (void (*)(int, void*))irq_install_handler,
     .register_keyb_getchar = reg_keyb,
+    .register_keyb_char_avail = reg_keyb_char_avail,
     .register_timer_get_ticks = reg_timer,
+    .register_timer_sched_handler = reg_timer_sched_handler,
     .ata_read_sectors = ata_read_sectors,
     .ata_write_sectors = ata_write_sectors,
 
     .fb_width = 0,
     .fb_height = 0,
+
+    .yield_to_scheduler = yield_to_scheduler,
+
+    .process_get_current = process_get_current,
+    .process_yield_to_ready = process_yield,
+    .process_get_ready = process_get_ready,
+    .process_set_current = process_set_current,
+
+    .gdt_set_kernel_stack = gdt_set_kernel_stack,
+
+    .paging_switch = paging_switch,
+    .paging_get_kernel_cr3 = get_kernel_cr3,
+
+    .context_activate = context_activate,
+
+    .register_mouse_get_x = reg_mouse_get_x,
+    .register_mouse_get_y = reg_mouse_get_y,
+    .register_mouse_get_buttons = reg_mouse_get_buttons,
+    .register_mouse_is_present = reg_mouse_is_present,
 };
 
 char keyb_getchar_wrapper(void)
 {
     if (registered_keyb_getchar)
         return (*registered_keyb_getchar)();
+    return 0;
+}
+
+int keyb_char_avail_wrapper(void)
+{
+    if (registered_keyb_char_avail)
+        return registered_keyb_char_avail();
     return 0;
 }
 

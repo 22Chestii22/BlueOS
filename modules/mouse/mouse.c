@@ -169,5 +169,15 @@ void mouse_module_init(kernel_api_t* kapi)
 
     mouse_init_done = 1;
 
+    api->register_mouse_get_x(mouse_get_x);
+    api->register_mouse_get_y(mouse_get_y);
+    api->register_mouse_get_buttons(mouse_get_buttons);
+    api->register_mouse_is_present(mouse_is_present);
+
     api->printf("[MOUSE] Module loaded (IRQ 12) at %dx%d\n", mouse_x, mouse_y);
+}
+
+void module_entry(kernel_api_t* kapi)
+{
+    mouse_module_init(kapi);
 }

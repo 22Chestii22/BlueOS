@@ -1,7 +1,7 @@
 #include "types.h"
 #include "string.h"
 #include "screen.h"
-#include "keyb.h"
+#include "module.h"
 #include "vfs.h"
 #include "pe.h"
 #include "process.h"
@@ -27,7 +27,7 @@ static void more_prompt(void)
     screen_get_cursor(&x, &y);
     screen_set_cursor(0, VGA_HEIGHT - 1);
     printf("-- More --");
-    keyb_getchar();
+    keyb_getchar_wrapper();
     screen_set_cursor(x, y);
     printf("\r          \r");
     pager_line = VGA_HEIGHT - 2;
@@ -687,7 +687,7 @@ static void cmd_time(void)
 static void cmd_pause(void)
 {
     printf("Press any key to continue . . . ");
-    keyb_getchar();
+    keyb_getchar_wrapper();
     printf("\n");
 }
 
@@ -1244,7 +1244,7 @@ void cmd_run(void)
     while (1)
     {
         if (cmd_should_exit) { printf("\n"); process_exit(0); }
-        char c = keyb_getchar();
+        char c = keyb_getchar_wrapper();
 
         if (c == '\n' || c == '\r')
         {

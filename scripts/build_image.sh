@@ -61,6 +61,14 @@ if command -v mformat &> /dev/null; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/modules/demo/demo.sys" ::/SYSTEM/DRIVERS/DEMO.SYS
         echo "  DEMO.SYS"
     fi
+    if [ -f "$PROJECT_ROOT/modules/keyb/keyb.sys" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/modules/keyb/keyb.sys" ::/SYSTEM/DRIVERS/KEYB.SYS
+        echo "  KEYB.SYS"
+    fi
+    if [ -f "$PROJECT_ROOT/modules/mouse/mouse.sys" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/modules/mouse/mouse.sys" ::/SYSTEM/DRIVERS/MOUSE.SYS
+        echo "  MOUSE.SYS"
+    fi
 
     # Create AUTOEXEC.BAT in /SYSTEM/
     echo "Creating AUTOEXEC.BAT..."
@@ -119,6 +127,14 @@ else
     if [ -f "$PROJECT_ROOT/modules/demo/demo.sys" ]; then
         sudo cp "$PROJECT_ROOT/modules/demo/demo.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/DEMO.SYS
         echo "  DEMO.SYS"
+    fi
+    if [ -f "$PROJECT_ROOT/modules/keyb/keyb.sys" ]; then
+        sudo cp "$PROJECT_ROOT/modules/keyb/keyb.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/KEYB.SYS
+        echo "  KEYB.SYS"
+    fi
+    if [ -f "$PROJECT_ROOT/modules/mouse/mouse.sys" ]; then
+        sudo cp "$PROJECT_ROOT/modules/mouse/mouse.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/MOUSE.SYS
+        echo "  MOUSE.SYS"
     fi
 
     echo "Creating AUTOEXEC.BAT in /SYSTEM/..."

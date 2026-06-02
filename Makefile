@@ -38,11 +38,9 @@ KERNEL_SRCS = \
     kernel/vga.c \
     kernel/fb.c \
     kernel/gui.c \
-    modules/keyb/keyb.c \
     modules/timer/timer.c \
     modules/ata/ata.c \
-    modules/fat/fat.c \
-    modules/mouse/mouse.c
+    modules/fat/fat.c
 
 KERNEL_OBJS = $(KERNEL_SRCS:.asm=.o)
 KERNEL_OBJS := $(KERNEL_OBJS:.c=.o)
@@ -88,7 +86,15 @@ modules/demo/demo.sys: modules/demo/demo.c modules/demo/demo.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/demo/demo.c -o modules/demo/demo.o
 	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/demo/demo.ld -o $@ modules/demo/demo.o
 
-disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe modules/demo/demo.sys scripts/build_image.sh
+modules/keyb/keyb.sys: modules/keyb/keyb.c modules/keyb/keyb.ld
+	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/keyb/keyb.c -o modules/keyb/keyb.o
+	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/keyb/keyb.ld -o $@ modules/keyb/keyb.o
+
+modules/mouse/mouse.sys: modules/mouse/mouse.c modules/mouse/mouse.ld
+	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/mouse/mouse.c -o modules/mouse/mouse.o
+	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/mouse/mouse.ld -o $@ modules/mouse/mouse.o
+
+disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys scripts/build_image.sh
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
@@ -103,6 +109,8 @@ clean:
 	rm -f programs/scout/scout.bin programs/scout/scout.exe
 	rm -f programs/gui_render/render.bin programs/gui_render/render.exe
 	rm -f programs/idle/idle.bin programs/idle/idle.exe
-	rm -f modules/keyb/keyb.o modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
+	rm -f modules/keyb/keyb.o modules/keyb/keyb.sys
+	rm -f modules/mouse/mouse.o modules/mouse/mouse.sys
+	rm -f modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
 	rm -f modules/demo/demo.o modules/demo/demo.sys
 	rm -rf iso

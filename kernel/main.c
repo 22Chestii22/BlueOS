@@ -24,7 +24,7 @@ extern void scheduler_init(void);
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 extern uint64_t cpu_data[4];
 
-extern void mouse_module_init(kernel_api_t* api);
+
 
 static uint64_t mb2_get_mem_size(void* mbd)
 {
@@ -138,11 +138,9 @@ void kernel_main(void* mbd, uint32_t magic)
     vga_init();
     gui_init();
 
-    keyb_module_init(&kernel_api);
     timer_module_init(&kernel_api);
     ata_module_init(&kernel_api);
     fat_module_init(&kernel_api);
-    mouse_module_init(&kernel_api);
     load_disk_modules("\\SYSTEM\\DRIVERS");
     process_init();
     syscall_init();

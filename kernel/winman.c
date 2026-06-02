@@ -4,12 +4,7 @@
 #include "string.h"
 #include "io.h"
 #include "mem.h"
-
-// Mouse access
-extern int mouse_get_x(void);
-extern int mouse_get_y(void);
-extern uint8_t mouse_get_buttons(void);
-extern int mouse_is_present(void);
+#include "module.h"
 
 static uint16_t* vga = (uint16_t*)VGA_MEMORY;
 
@@ -68,10 +63,10 @@ static void draw_status_bar(void)
 {
     fill(0, 24, VGA_WIDTH, 1, ' ', COL_STATUS_FG, COL_STATUS_BG);
     int mx = 0, my = 0;
-    if (mouse_is_present())
+    if (mouse_is_present_wrapper())
     {
-        mx = mouse_get_x();
-        my = mouse_get_y();
+        mx = mouse_get_x_wrapper();
+        my = mouse_get_y_wrapper();
     }
     char buf[32];
     int len = 0;
@@ -187,9 +182,9 @@ static void draw_window(int idx)
 
 static void draw_mouse_cursor(void)
 {
-    if (!mouse_is_present()) return;
-    int mx = mouse_get_x() / 8;
-    int my = mouse_get_y() / 16;
+    if (!mouse_is_present_wrapper()) return;
+    int mx = mouse_get_x_wrapper() / 8;
+    int my = mouse_get_y_wrapper() / 16;
     if (mx < 0 || mx >= VGA_WIDTH || my < 0 || my >= VGA_HEIGHT) return;
     if (my == 0 || my == 24) return;
 
@@ -202,8 +197,8 @@ static void draw_mouse_cursor(void)
 
 static void handle_click(void)
 {
-    int mx = mouse_get_x() / 8;
-    int my = mouse_get_y() / 16;
+    int mx = mouse_get_x_wrapper() / 8;
+    int my = mouse_get_y_wrapper() / 16;
     if (mx < 0 || mx >= VGA_WIDTH || my < 0 || my >= VGA_HEIGHT) return;
 
     // Check if clicked on a window
@@ -428,7 +423,7 @@ void winman_render(void)
         draw_window(active_window);
 
     // Mouse
-    uint8_t buttons = mouse_get_buttons();
+    uint8_t buttons = mouse_get_buttons_wrapper();
     if ((buttons & 1) && !(prev_buttons & 1))
         handle_click();
     prev_buttons = buttons;

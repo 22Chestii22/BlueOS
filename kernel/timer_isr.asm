@@ -1,6 +1,6 @@
 BITS 64
 
-extern timer_handler_and_schedule
+extern timer_isr_dispatch
 
 global timer_isr
 timer_isr:
@@ -22,7 +22,7 @@ timer_isr:
 
     mov rdi, rsp
     cld
-    call timer_handler_and_schedule
+    call timer_isr_dispatch
 
     pop r15
     pop r14

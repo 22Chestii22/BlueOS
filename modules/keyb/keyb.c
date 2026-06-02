@@ -1,8 +1,6 @@
 #include "types.h"
 #include "kernel_api.h"
 
-extern void yield_to_scheduler(void);
-
 #define KEYB_PORT 0x60
 #define KEYB_STATUS 0x64
 
@@ -118,7 +116,8 @@ char keyb_getchar(void)
     while (key_buffer_head == key_buffer_tail)
     {
         __asm__ volatile("pause");
-        yield_to_scheduler();
+        if (api)
+            api->yield_to_scheduler();
     }
 
     char c = key_buffer[key_buffer_tail];
@@ -135,5 +134,12 @@ void keyb_module_init(kernel_api_t* kapi)
 {
     api = kapi;
     api->irq_install_handler(1, (void*)keyboard_handler);
+    api->register_keyb_getchar(keyb_getchar);
+    api->register_keyb_char_avail(keyb_char_avail);
     api->printf("[KEYB] Module loaded\n");
+}
+
+void module_entry(kernel_api_t* kapi)
+{
+    keyb_module_init(kapi);
 }

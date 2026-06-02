@@ -1,6 +1,7 @@
 BITS 64
 
 extern yield_handler
+extern cpu_data
 
 global process_switch
 process_switch:
@@ -75,6 +76,27 @@ context_activate:
 .ring3:
     cli
     mov rsp, rsi
+
+    ; Fix GS.base and MSR_KERNEL_GS_BASE before entering user mode.
+    ; All user processes expect:
+    ;   GS.base = 0 (for swapgs on next SYSCALL entry)
+    ;   MSR_KERNEL_GS_BASE = &cpu_data (swapgs target)
+    ; This handles three entry paths correctly:
+    ;   1) SYSCALL yield (swapgs done: GS.base=&cpu_data, MSR_KERNEL_GS_BASE=0)
+    ;   2) Timer IRQ  (no swapgs:    GS.base=0, MSR_KERNEL_GS_BASE=&cpu_data)
+    ;   3) First activation from main.c (no swapgs: GS.base=0, MSR_KERNEL_GS_BASE=&cpu_data)
+
+    lea rax, [rel cpu_data]
+    mov rdx, rax
+    shr rdx, 32
+    mov rcx, 0xC0000102       ; MSR_KERNEL_GS_BASE
+    wrmsr
+
+    xor eax, eax
+    xor edx, edx
+    mov rcx, 0xC0000101       ; MSR_GS_BASE (sets both MSR and GS.base register)
+    wrmsr
+
     push qword [rdi + 19*8]
     push qword [rdi + 18*8]
     push qword [rdi + 17*8]

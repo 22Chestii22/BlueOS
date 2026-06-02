@@ -14,17 +14,20 @@
 #define ELF_PT_DYNAMIC 2
 
 #define ELF_DT_NULL 0
+#define ELF_DT_PLTRELSZ 2
+#define ELF_DT_STRTAB 5
+#define ELF_DT_SYMTAB 6
 #define ELF_DT_RELA 7
 #define ELF_DT_RELASZ 8
 #define ELF_DT_RELAENT 9
-#define ELF_DT_SYMTAB 6
 #define ELF_DT_STRSZ 10
-#define ELF_DT_STRTAB 5
+#define ELF_DT_JMPREL 23
 
 #define ELF_R_X86_64_NONE 0
 #define ELF_R_X86_64_64 1
 #define ELF_R_X86_64_PC32 2
 #define ELF_R_X86_64_GLOB_DAT 6
+#define ELF_R_X86_64_JUMP_SLOT 7
 #define ELF_R_X86_64_RELATIVE 8
 #define ELF_R_X86_64_PLT32 4
 

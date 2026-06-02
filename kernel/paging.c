@@ -231,7 +231,10 @@ uint64_t paging_create_pml4(void)
 
             if (old_pdpt[j] & (1 << 7))
             {
-                new_pdpt[j] = old_pdpt[j] | 0x06;
+                if (i < 256)
+                    new_pdpt[j] = old_pdpt[j] | 0x06;
+                else
+                    new_pdpt[j] = (old_pdpt[j] | 0x02) & ~0x04UL;
             }
             else
             {
@@ -247,7 +250,10 @@ uint64_t paging_create_pml4(void)
 
                     if (old_pd[k] & (1 << 7))
                     {
-                        new_pd[k] = old_pd[k] | 0x06;
+                        if (i < 256)
+                            new_pd[k] = old_pd[k] | 0x06;
+                        else
+                            new_pd[k] = (old_pd[k] | 0x02) & ~0x04UL;
                     }
                     else
                     {
@@ -259,15 +265,29 @@ uint64_t paging_create_pml4(void)
                         for (int l = 0; l < 512; l++)
                         {
                             if (old_pt[l] & 1)
-                                new_pt[l] = old_pt[l] | 0x06;
+                            {
+                                if (i < 256)
+                                    new_pt[l] = old_pt[l] | 0x06;  // user page: User|Write
+                                else
+                                    new_pt[l] = old_pt[l] | 0x02;  // kernel page: Write only, no User
+                            }
                         }
-                        new_pd[k] = new_pt_frame | (old_pd[k] & 0xFFF) | 0x06;
+                        if (i < 256)
+                            new_pd[k] = new_pt_frame | (old_pd[k] & 0xFFF) | 0x06;
+                        else
+                            new_pd[k] = new_pt_frame | (old_pd[k] & 0xFFF) | 0x02;
                     }
                 }
-                new_pdpt[j] = new_pd_frame | (old_pdpt[j] & 0xFFF) | 0x06;
+                if (i < 256)
+                    new_pdpt[j] = new_pd_frame | (old_pdpt[j] & 0xFFF) | 0x06;
+                else
+                    new_pdpt[j] = new_pd_frame | (old_pdpt[j] & 0xFFF) | 0x02;
             }
         }
-        new_pml4[i] = new_pdpt_frame | (kernel_pml4[i] & 0xFFF) | 0x06;
+        if (i < 256)
+            new_pml4[i] = new_pdpt_frame | (kernel_pml4[i] & 0xFFF) | 0x06;
+        else
+            new_pml4[i] = new_pdpt_frame | (kernel_pml4[i] & 0xFFF) | 0x02;
     }
 
     return page;

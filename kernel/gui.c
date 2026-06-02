@@ -7,10 +7,7 @@
 #include "font.h"
 #include "pe.h"
 
-extern int mouse_get_x(void);
-extern int mouse_get_y(void);
-extern uint8_t mouse_get_buttons(void);
-extern int mouse_is_present(void);
+#include "module.h"
 
 static gui_window_t windows[GUI_MAX_WINDOWS];
 static int num_windows = 0;
@@ -424,9 +421,9 @@ static void draw_window(int idx)
 
 static void draw_mouse_cursor(void)
 {
-    if (!mouse_is_present()) return;
-    int mx = mouse_get_x();
-    int my = mouse_get_y();
+    if (!mouse_is_present_wrapper()) return;
+    int mx = mouse_get_x_wrapper();
+    int my = mouse_get_y_wrapper();
     if (mx < 0 || (uint32_t)mx >= fb_info.width || my < 0 || (uint32_t)my >= fb_info.height)
         return;
 
@@ -658,7 +655,7 @@ static int handle_taskbar_click(int mx, int my)
     }
 
     int bx = start_x + start_w + 4;
-    int sinfo_w = mouse_is_present() ? 10 * FONT_WIDTH + 8 : 0;
+    int sinfo_w = mouse_is_present_wrapper() ? 10 * FONT_WIDTH + 8 : 0;
     int max_w = fb_info.width - sinfo_w - bx - 4;
 
     for (int i = 0; i < num_windows; i++)
@@ -698,8 +695,8 @@ static int handle_taskbar_click(int mx, int my)
 
 static void handle_click(void)
 {
-    int mx = mouse_get_x();
-    int my = mouse_get_y();
+    int mx = mouse_get_x_wrapper();
+    int my = mouse_get_y_wrapper();
     if (mx < 0 || (uint32_t)mx >= fb_info.width || my < 0 || (uint32_t)my >= fb_info.height)
         return;
 
@@ -833,7 +830,7 @@ static void handle_click(void)
                 w->event_queue[w->event_tail].type = 1;
                 w->event_queue[w->event_tail].mx = mx;
                 w->event_queue[w->event_tail].my = my;
-                w->event_queue[w->event_tail].buttons = mouse_get_buttons();
+                w->event_queue[w->event_tail].buttons = mouse_get_buttons_wrapper();
                 w->event_tail = nx;
             }
         }
@@ -1135,10 +1132,10 @@ static void draw_taskbar(void)
     char buf[64];
     int len = 0;
 
-    if (mouse_is_present())
+    if (mouse_is_present_wrapper())
     {
-        int mx = mouse_get_x();
-        int my = mouse_get_y();
+        int mx = mouse_get_x_wrapper();
+        int my = mouse_get_y_wrapper();
         buf[len++] = 'M';
         buf[len++] = ':';
         int t = mx;
@@ -1213,8 +1210,8 @@ void gui_render(void)
     fb_clear(GUI_DESKTOP_COL);
 
     {
-        int mmx = mouse_get_x();
-        int mmy = mouse_get_y();
+        int mmx = mouse_get_x_wrapper();
+        int mmy = mouse_get_y_wrapper();
         for (int mi = 0; mi < num_menus; mi++)
         {
             menus[mi].hovered = -1;
@@ -1232,8 +1229,8 @@ void gui_render(void)
     {
         int tby = fb_info.height - GUI_TASK_HEIGHT;
         int item_h = FONT_HEIGHT + 4;
-        int mmx = mouse_get_x();
-        int mmy = mouse_get_y();
+        int mmx = mouse_get_x_wrapper();
+        int mmy = mouse_get_y_wrapper();
         start_menu_hovered = -1;
         start_submenu_hovered = -1;
         int mh = start_num_items * item_h + 4;
@@ -1278,8 +1275,8 @@ void gui_render(void)
     {
         if (windows[i].dragging)
         {
-            int mx = mouse_get_x();
-            int my = mouse_get_y();
+            int mx = mouse_get_x_wrapper();
+            int my = mouse_get_y_wrapper();
             windows[i].drag_outline_x = mx - windows[i].drag_off_x;
             windows[i].drag_outline_y = my - windows[i].drag_off_y;
         }
@@ -1296,7 +1293,7 @@ void gui_render(void)
     draw_start_menu();
     draw_taskbar();
 
-    uint8_t buttons = mouse_get_buttons();
+    uint8_t buttons = mouse_get_buttons_wrapper();
 
     for (int i = 0; i < num_windows; i++)
     {

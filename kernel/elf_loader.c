@@ -76,6 +76,8 @@ int elf_load_module(const char* path, loaded_module_t* mod)
 
     void* rela = NULL;
     uint64_t rela_size = 0;
+    void* jmprel = NULL;
+    uint64_t jmprel_size = 0;
     uint64_t rela_entsize = sizeof(elf64_rela_t);
     void* symtab = NULL;
     void* strtab = NULL;
@@ -95,6 +97,13 @@ int elf_load_module(const char* path, loaded_module_t* mod)
             case ELF_DT_RELASZ:
                 rela_size = val;
                 break;
+            case ELF_DT_JMPREL:
+                if (val >= min_vaddr)
+                    jmprel = (void*)(base_addr + val);
+                break;
+            case ELF_DT_PLTRELSZ:
+                jmprel_size = val;
+                break;
             case ELF_DT_RELAENT:
                 rela_entsize = val;
                 break;
@@ -111,6 +120,7 @@ int elf_load_module(const char* path, loaded_module_t* mod)
         }
     }
 
+    /* Process regular relocations (RELA) */
     if (rela && rela_size > 0)
     {
         uint64_t num_rela = rela_size / rela_entsize;
@@ -133,6 +143,7 @@ int elf_load_module(const char* path, loaded_module_t* mod)
                 break;
 
             case ELF_R_X86_64_GLOB_DAT:
+            case ELF_R_X86_64_JUMP_SLOT:
             case ELF_R_X86_64_64:
                 if (symtab && strtab && sym_idx > 0)
                 {
@@ -159,6 +170,45 @@ int elf_load_module(const char* path, loaded_module_t* mod)
                     value -= (int64_t)patch_addr;
                     *(uint32_t*)patch_addr = (uint32_t)(value & 0xFFFFFFFF);
                 }
+                break;
+
+            case ELF_R_X86_64_NONE:
+                break;
+            }
+        }
+    }
+
+    /* Process PLT relocations (JMPREL) */
+    if (jmprel && jmprel_size > 0)
+    {
+        uint64_t num_rela = jmprel_size / rela_entsize;
+        for (uint64_t i = 0; i < num_rela; i++)
+        {
+            elf64_rela_t* r = (elf64_rela_t*)((uint64_t)jmprel + i * rela_entsize);
+            uint32_t type = r->info & 0xFFFFFFFF;
+            uint32_t sym_idx = r->info >> 32;
+            uint64_t patch_addr;
+
+            if (r->offset >= min_vaddr)
+                patch_addr = base_addr + r->offset;
+            else
+                patch_addr = (uint64_t)base + (r->offset - min_vaddr);
+
+            switch (type)
+            {
+            case ELF_R_X86_64_JUMP_SLOT:
+            case ELF_R_X86_64_GLOB_DAT:
+            case ELF_R_X86_64_64:
+                if (symtab && strtab && sym_idx > 0)
+                {
+                    elf64_sym_t* sym = (elf64_sym_t*)((uint64_t)symtab + sym_idx * symtab_entsize);
+                    uint64_t sym_val = sym->value ? base_addr + sym->value : 0;
+                    *(uint64_t*)patch_addr = sym_val + r->addend;
+                }
+                break;
+
+            case ELF_R_X86_64_RELATIVE:
+                *(uint64_t*)patch_addr = base_addr + r->addend;
                 break;
 
             case ELF_R_X86_64_NONE:

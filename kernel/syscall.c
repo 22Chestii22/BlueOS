@@ -4,7 +4,7 @@
 #include "process.h"
 #include "mem.h"
 #include "vfs.h"
-#include "keyb.h"
+#include "module.h"
 #include "timer.h"
 #include "gui.h"
 #include "pe.h"
@@ -64,10 +64,10 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
             return vfs_close((int)a1);
 
         case 10:
-            return keyb_getchar();
+            return keyb_getchar_wrapper();
 
         case 32:
-            return keyb_char_avail();
+            return keyb_char_avail_wrapper();
 
         case 11:
             screen_clear();
