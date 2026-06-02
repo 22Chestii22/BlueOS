@@ -7,7 +7,7 @@ disk.img
 iso/
 .antigravitycli/
 .hive/
-AGENTS.md
+
 *.log
 *.bak
 kernel/boot_no_fb.asm
