@@ -148,7 +148,7 @@ int elf_load_module(const char* path, loaded_module_t* mod)
                 if (symtab && strtab && sym_idx > 0)
                 {
                     elf64_sym_t* sym = (elf64_sym_t*)((uint64_t)symtab + sym_idx * symtab_entsize);
-                    uint64_t sym_val = sym->value ? base_addr + sym->value : 0;
+                    uint64_t sym_val = (sym->shndx != 0) ? (base_addr + sym->value) : 0;
                     *(uint64_t*)patch_addr = sym_val + r->addend;
                 }
                 break;
@@ -160,7 +160,7 @@ int elf_load_module(const char* path, loaded_module_t* mod)
                     if (sym_idx > 0 && symtab)
                     {
                         elf64_sym_t* sym = (elf64_sym_t*)((uint64_t)symtab + sym_idx * symtab_entsize);
-                        value = sym->value ? (int64_t)(base_addr + sym->value) : 0;
+                        value = (sym->shndx != 0) ? (int64_t)(base_addr + sym->value) : 0;
                     }
                     else
                     {
@@ -202,7 +202,7 @@ int elf_load_module(const char* path, loaded_module_t* mod)
                 if (symtab && strtab && sym_idx > 0)
                 {
                     elf64_sym_t* sym = (elf64_sym_t*)((uint64_t)symtab + sym_idx * symtab_entsize);
-                    uint64_t sym_val = sym->value ? base_addr + sym->value : 0;
+                    uint64_t sym_val = (sym->shndx != 0) ? (base_addr + sym->value) : 0;
                     *(uint64_t*)patch_addr = sym_val + r->addend;
                 }
                 break;
