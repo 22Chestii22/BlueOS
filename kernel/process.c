@@ -257,6 +257,8 @@ void yield_handler(context_t* frame)
     process_t* current = process_get_current();
     if (!current) return;
 
+    current->user_rsp = cpu_data[2];
+
     for (int i = 0; i < 20; i++)
         ((uint64_t*)current->context)[(i + 15) % 20] = ((uint64_t*)frame)[i];
 
@@ -276,6 +278,7 @@ void yield_handler(context_t* frame)
     uint64_t kstack = (uint64_t)next->kernel_stack + next->kernel_stack_size;
     gdt_set_kernel_stack(kstack);
     cpu_data[3] = kstack;
+    cpu_data[2] = next->user_rsp;
 
     if (next->page_table)
         paging_switch(next->page_table);

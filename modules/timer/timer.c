@@ -34,6 +34,8 @@ void timer_handler_and_schedule(context_t* frame)
 
     if ((frame->cs & 3) == 0) return;
 
+    current->user_rsp = frame->rsp;
+
     process_yield();
     process_t* next = process_get_ready();
 
@@ -62,6 +64,7 @@ void timer_handler_and_schedule(context_t* frame)
 
     gdt_set_kernel_stack(kstack);
     cpu_data[3] = kstack;
+    cpu_data[2] = next->user_rsp;
 
     if (next->page_table)
         paging_switch(next->page_table);

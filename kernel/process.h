@@ -34,6 +34,7 @@ typedef struct process
     uint64_t entry_point;
     uint64_t page_table;
     uint64_t user_stack;
+    uint64_t user_rsp;
     int exit_code;
     struct process* next;
 } process_t;

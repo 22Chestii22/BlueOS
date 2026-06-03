@@ -51,6 +51,19 @@ context_activate:
     jnz .ring3
 
 .ring0:
+    ; Set GS.base = &cpu_data, MSR_KERNEL_GS_BASE = 0
+    ; This matches the state after swapgs at syscall entry,
+    ; ensuring the eventual sysret path can safely access gs:0x10.
+    lea rax, [rel cpu_data]
+    mov rdx, rax
+    shr rdx, 32
+    mov rcx, 0xC0000101       ; MSR_GS_BASE
+    wrmsr
+    xor eax, eax
+    xor edx, edx
+    mov rcx, 0xC0000102       ; MSR_KERNEL_GS_BASE
+    wrmsr
+
     mov rsp, [rdi + 18*8]        ; restore saved RSP from context
     mov rax, [rdi + 15*8]        ; save rip
     push rax                     ; push rip for ret
