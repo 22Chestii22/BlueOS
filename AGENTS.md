@@ -127,7 +127,13 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **JUMP_SLOT relocation fix for KEYB.SYS/MOUSE.SYS**: Added `R_X86_64_JUMP_SLOT` handler and `JMPREL` (`.rela.plt`) processing in `elf_loader.c`. Without this, `-fPIC`-compiled modules crash with #UD when calling global functions because the unpatched GOT.PLT entry points to lazy binding stub → jumps to address 0.
 - **Timer enabled**: `timer_start()` and `timer_scheduler_enable()` are called from `main.c`. PIT is programmed at 100 Hz. Preemptive multitasking is active — timer IRQ context switches between RENDER, CMD, and IDLE.
 - **Fixed swapgs imbalance causing Double Fault on SYSCALL after context switch** (`kernel/switch.asm`): When `yield_from_user_syscall` → `yield_handler` → `context_activate` switched to a new process, the `swapgs` done at SYSCALL entry was never undone (because `iretq` bypasses the balancing `swapgs` + `sysretq`). The new process ran with `GS.base=&cpu_data` (kernel base). Its subsequent `swapgs` at SYSCALL entry swapped back to `MSR_GS_BASE=0`, causing `mov rsp, gs:0x18` to read from physical address 0x18 instead of `cpu_data[3]` → #PF → #DF.
-  - Fix: `context_activate.ring3` now explicitly sets `GS.base=0` and `MSR_KERNEL_GS_BASE=&cpu_data` via WRMSR before `iretq`. This works for ALL entry paths (SYSCALL yield, timer IRQ, first activation).
+      - Fix: `context_activate.ring3` now explicitly sets `GS.base=0` and `MSR_KERNEL_GS_BASE=&cpu_data` via WRMSR before `iretq`. This works for ALL entry paths (SYSCALL yield, timer IRQ, first activation).
+
+### Session 6
+
+- **Fixed #DF on keyboard input** — two bugs in ring 0 context switch caused #PF→#DF when typing in CMD terminal:
+  1. **context_activate.ring0 missed GS.base restore** (`kernel/switch.asm`): When a process yielded from inside a syscall (e.g., GETCHAR via `keyb_getchar` → `yield_to_scheduler`), the saved context had CS=0x08 (ring 0). The timer IRQ later resumed this process via `context_activate.ring0`, which did NOT set GS.base. GS.base was still 0 from the prior `.ring3` activation (set for a user process). The syscall exit path then executed `mov rsp, gs:0x10`, reading from physical address 0x10 → #PF → #DF. Fix: `.ring0` now sets `GS.base=&cpu_data` and `MSR_KERNEL_GS_BASE=0` via WRMSR, matching the swapgs-at-syscall-entry state.
+  2. **cpu_data[2] user RSP corruption** (`kernel/process.c`, `modules/timer/timer.c`): `cpu_data[2]` (written by `mov gs:0x10, rsp` at syscall entry) is a single global slot. When another process issued a syscall between the yield and resume, it overwrote `cpu_data[2]` with its own user RSP. The resumed process then loaded the wrong stack pointer on syscall exit. Fix: added `user_rsp` field to `process_t`, saved in `yield_handler` and `timer_handler_and_schedule`, restored into `cpu_data[2]` before `context_activate`.
 
 ## Commit & Release Rules
 
