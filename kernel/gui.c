@@ -6,7 +6,7 @@
 #include "gui.h"
 #include "font.h"
 #include "pe.h"
-#include "serial.h"
+
 
 #include "module.h"
 
@@ -221,9 +221,9 @@ static void draw_start_menu(void)
     int tby = fb_info.height - GUI_TASK_HEIGHT;
     int mx = 2;
     int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
-    int my = tby - XP_SM_HEADER_H - max_items * XP_SM_ITEM_H - XP_SM_BOTTOM_H;
+    int my = tby - XP_SM_HEADER_H - max_items * XP_SM_ITEM_H - W7_SM_SEARCH_H - XP_SM_BOTTOM_H;
 
-    int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
+    int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + W7_SM_SEARCH_H + XP_SM_BOTTOM_H;
 
     fb_fillrect(mx, my, XP_SM_TOTAL_W, total_h, COL_W7_SM_LEFT_BG);
 
@@ -383,6 +383,18 @@ static void fb_draw_rect_outline(int x, int y, int w, int h, uint32_t color)
     fb_draw_vline(x + w - 1, y, y + h - 1, color);
 }
 
+static void draw_window_shadow(gui_window_t* w)
+{
+    int s = 4;
+    int x = w->x, y = w->y, ww = w->w, wh = w->h;
+    uint32_t col = COL_BLACK;
+
+    fb_fillrect_alpha(x - s, y + 2, s, wh - 2, col, 35);
+    fb_fillrect_alpha(x + ww, y + 2, s, wh - 2, col, 35);
+    fb_fillrect_alpha(x - s + 2, y - s, ww + s * 2 - 4, s, col, 35);
+    fb_fillrect_alpha(x - s + 2, y + wh, ww + s * 2 - 4, s, col, 35);
+}
+
 static void draw_window_title_bar(gui_window_t* w, int active)
 {
     int x = w->x, y = w->y, tw = w->w;
@@ -405,20 +417,21 @@ static void draw_window_title_bar(gui_window_t* w, int active)
         uint32_t col;
         if (active)
         {
-            uint8_t v = 0xE0 + (uint32_t)(0xF8 - 0xE0) * row / GUI_TITLE_HEIGHT;
-            col = FB_RGB(v, v + 4, v + 8);
+            uint8_t r = 0x10 + (uint32_t)(0x28 - 0x10) * row / GUI_TITLE_HEIGHT;
+            uint8_t g = 0x50 + (uint32_t)(0x78 - 0x50) * row / GUI_TITLE_HEIGHT;
+            uint8_t b = 0xCC + (uint32_t)(0xF0 - 0xCC) * row / GUI_TITLE_HEIGHT;
+            col = FB_RGB(r, g, b);
         }
         else
         {
-            uint8_t v = 0xD8 + (uint32_t)(0xE8 - 0xD8) * row / GUI_TITLE_HEIGHT;
+            uint8_t v = 0xD0 + (uint32_t)(0xE8 - 0xD0) * row / GUI_TITLE_HEIGHT;
             col = FB_RGB(v, v, v);
         }
-        /* Semi-transparent glass */
         uint8_t alpha = 160 + (uint32_t)(80 * row) / GUI_TITLE_HEIGHT;
         fb_fillrect_alpha((uint32_t)x, (uint32_t)(y + row), (uint32_t)tw, 1, col, alpha);
     }
 
-    /* Aero glossy reflection at top - brighter strip */
+    /* Aero glossy reflection at top */
     for (int col = 2; col < tw - 2; col++)
     {
         uint32_t c = fb_getpixel((uint32_t)(x + col), (uint32_t)(y + 1));
@@ -430,7 +443,7 @@ static void draw_window_title_bar(gui_window_t* w, int active)
         }
     }
 
-    /* Active window glow effect - colored border glow */
+    /* Active window border glow */
     if (active)
     {
         for (int off = -2; off <= 2; off++)
@@ -463,33 +476,49 @@ static void draw_window_title_bar(gui_window_t* w, int active)
         fb_drawstring(tx, y + 4, w->title, fg, 0);
     }
 
+    /* Button hover detection */
+    int mmx = mouse_get_x_wrapper();
+    int mmy = mouse_get_y_wrapper();
     int cap_y = y + (GUI_TITLE_HEIGHT - 16) / 2;
     int btn_size = 16;
     int btn_gap = 2;
 
-    /* Close button — Aero red (always visible) */
     int close_x = x + tw - btn_size - 2;
-    fb_fillrect(close_x, cap_y, btn_size, btn_size, COL_W7_AERO_CLOSE);
+    int max_x = close_x - btn_size - btn_gap;
+    int min_x = max_x - btn_size - btn_gap;
+
+    int close_hover = (mmx >= close_x && mmx < close_x + btn_size &&
+                       mmy >= cap_y && mmy < cap_y + btn_size) && active;
+    int max_hover = (mmx >= max_x && mmx < max_x + btn_size &&
+                     mmy >= cap_y && mmy < cap_y + btn_size) && active;
+    int min_hover = (mmx >= min_x && mmx < min_x + btn_size &&
+                     mmy >= cap_y && mmy < cap_y + btn_size) && active;
+
+    /* Close button — Aero red with hover effect */
+    uint32_t close_bg = close_hover ? COL_W7_AERO_CLOSE_HOV : COL_W7_AERO_CLOSE;
+    fb_fillrect(close_x, cap_y, btn_size, btn_size, close_bg);
     fb_fillrect(close_x + 3, cap_y + 3, btn_size - 6, btn_size - 6, FB_RGB(0xC0, 0x20, 0x20));
     fb_drawstring(close_x + 4, cap_y + 1, "X", COL_WHITE, FB_RGB(0xC0, 0x20, 0x20));
-    /* Close button white glow highlight */
-    fb_draw_hline(cap_y, close_x + 2, close_x + btn_size - 3, FB_RGB(0xFF, 0x80, 0x80));
+    if (close_hover)
+        fb_draw_hline(cap_y, close_x + 2, close_x + btn_size - 3, COL_WHITE);
+    else
+        fb_draw_hline(cap_y, close_x + 2, close_x + btn_size - 3, FB_RGB(0xFF, 0x80, 0x80));
 
-    /* Maximize button */
-    int max_x = close_x - btn_size - btn_gap;
+    /* Maximize button — overlapping squares */
     if (!w->minimized)
     {
-        fb_fillrect(max_x, cap_y, btn_size, btn_size, FB_RGB(0xE8, 0xE8, 0xE8));
+        uint32_t max_bg = max_hover ? COL_XP_BTN_HOVER : FB_RGB(0xE8, 0xE8, 0xE8);
+        fb_fillrect(max_x, cap_y, btn_size, btn_size, max_bg);
         draw_3d_rect(max_x, cap_y, btn_size, btn_size, 1);
         fb_draw_rect_outline(max_x + 4, cap_y + 3, 8, 7, FB_RGB(0x40, 0x40, 0x40));
         fb_draw_rect_outline(max_x + 3, cap_y + 5, 8, 7, FB_RGB(0x60, 0x60, 0x60));
     }
 
-    /* Minimize button */
+    /* Minimize button — line */
     if (!w->minimized)
     {
-        int min_x = max_x - btn_size - btn_gap;
-        fb_fillrect(min_x, cap_y, btn_size, btn_size, FB_RGB(0xE8, 0xE8, 0xE8));
+        uint32_t min_bg = min_hover ? COL_XP_BTN_HOVER : FB_RGB(0xE8, 0xE8, 0xE8);
+        fb_fillrect(min_x, cap_y, btn_size, btn_size, min_bg);
         draw_3d_rect(min_x, cap_y, btn_size, btn_size, 1);
         fb_draw_hline(cap_y + 12, min_x + 4, min_x + 11, COL_W7_AERO_MIN);
     }
@@ -1597,10 +1626,16 @@ void gui_render(void)
     for (int i = 0; i < num_windows; i++)
     {
         if (i != active_window && windows[i].visible && !windows[i].minimized)
+        {
+            draw_window_shadow(&windows[i]);
             draw_window(i);
+        }
     }
     if (active_window >= 0 && windows[active_window].visible && !windows[active_window].minimized)
+    {
+        draw_window_shadow(&windows[active_window]);
         draw_window(active_window);
+    }
 
     draw_start_menu();
     draw_taskbar();
