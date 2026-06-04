@@ -5,7 +5,7 @@
 #include "paging.h"
 #include "fb.h"
 #include "font.h"
-#include "io.h"
+#include "timer.h"
 
 #define NUM_BACKBUFFERS 2
 
@@ -15,6 +15,8 @@ static uint32_t* backbuffers[NUM_BACKBUFFERS] = {NULL};
 static uint32_t* backbuffer = NULL;
 static uint32_t* mapped_fb = NULL;
 static int current_buffer = 0;
+
+#define BACKBUFFER_VADDR_BASE 0x2000000
 
 void fb_init(uint64_t phys_addr, uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp)
 {
@@ -38,21 +40,56 @@ void fb_init(uint64_t phys_addr, uint32_t width, uint32_t height, uint32_t pitch
     printf("[FB] %dx%d %dbpp pitch=%d addr=0x%x\n", width, height, bpp, pitch, (uint32_t)phys_addr);
 }
 
+static uint32_t* backbuffer_alloc_pages(uint32_t size, int idx)
+{
+    uint32_t pages = (size + 0xFFF) / 0x1000;
+    static uint64_t next_vaddr = BACKBUFFER_VADDR_BASE;
+    uint64_t vaddr = next_vaddr;
+
+    for (uint32_t i = 0; i < pages; i++)
+    {
+        uint64_t paddr = paging_alloc_frame();
+        if (paddr == 0xFFFFFFFF)
+        {
+            for (uint32_t j = 0; j < i; j++)
+                unmap_page(vaddr + j * 0x1000);
+            return NULL;
+        }
+        map_page(vaddr + i * 0x1000, paddr, 0x03);
+    }
+
+    next_vaddr = vaddr + pages * 0x1000;
+    UNUSED(idx);
+    return (uint32_t*)vaddr;
+}
+
 void fb_backbuffer_alloc(void)
 {
     if (backbuffers[0]) return;
     uint32_t size = fb_info.height * fb_info.pitch;
+
     for (int i = 0; i < NUM_BACKBUFFERS; i++)
     {
         backbuffers[i] = (uint32_t*)malloc(size);
         if (backbuffers[i])
+        {
             memset(backbuffers[i], 0, size);
+        }
         else
-            printf("[FB] Failed to allocate backbuffer %d\n", i);
+        {
+            backbuffers[i] = backbuffer_alloc_pages(size, i);
+            if (backbuffers[i])
+            {
+                printf("[FB] Backbuffer %d: page-allocated (%d KB)\n", i, size / 1024);
+                memset(backbuffers[i], 0, size);
+            }
+            else
+                printf("[FB] FAILED to allocate backbuffer %d (%d KB)\n", i, size / 1024);
+        }
     }
     backbuffer = backbuffers[0];
     current_buffer = 0;
-    printf("[FB] Triple buffering: %d buffers, %d KB each\n",
+    printf("[FB] Backbuffers: %d buffers, %d KB each\n",
            NUM_BACKBUFFERS, size / 1024);
 }
 
@@ -206,14 +243,6 @@ void fb_drawstring(int x, int y, const char* str, uint32_t fg, uint32_t bg)
     }
 }
 
-static void fb_wait_vblank(void)
-{
-    int timeout = 100000;
-    while (--timeout > 0 && (inb(0x3DA) & 0x08) == 0);
-    timeout = 100000;
-    while (--timeout > 0 && (inb(0x3DA) & 0x08) != 0);
-}
-
 static void fb_swap_buffers(void)
 {
     int next = (current_buffer + 1) % NUM_BACKBUFFERS;
@@ -221,11 +250,15 @@ static void fb_swap_buffers(void)
     backbuffer = backbuffers[current_buffer];
 }
 
+static uint64_t last_blit_tick = 0;
+
 void fb_blit(void)
 {
     if (!backbuffer) return;
 
-    fb_wait_vblank();
+    uint64_t now = timer_get_ticks();
+    if (now == last_blit_tick) return;
+    last_blit_tick = now;
 
     memcpy((void*)(unsigned long)fb_info.addr, backbuffer, fb_info.height * fb_info.pitch);
 
@@ -413,9 +446,9 @@ void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip)
     uint32_t bg = FB_RGB(0, 0, 170);
     uint32_t fg = FB_RGB(255, 255, 255);
 
-    for (uint32_t y = 0; y < fb_info.height; y++)
-        for (uint32_t x = 0; x < fb_info.width; x++)
-            putpixel_raw(x, y, bg);
+    uint32_t count = fb_info.height * (fb_info.pitch / 4);
+    for (uint32_t i = 0; i < count; i++)
+        mapped_fb[i] = bg;
 
     static const char* exc_names[] = {
         "Divide-by-zero", "Debug", "NMI", "Breakpoint", "Overflow",

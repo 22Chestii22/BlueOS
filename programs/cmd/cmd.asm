@@ -35,8 +35,8 @@ start:
     lea rdi, [rel title_str]
     mov rsi, 30
     mov rdx, 30
-    mov r10, 700
-    mov r8, 400
+    mov r10, 960
+    mov r8, 640
     syscall
     mov [rel cmd_win], eax
 

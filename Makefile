@@ -4,6 +4,7 @@ LD = ld
 GRUB_MKRESCUE = grub-mkrescue
 XORRISO = xorriso
 QEMU = qemu-system-x86_64
+QEMU_BASE = -drive file=disk.img,format=raw,if=ide -boot order=d -usb -device usb-tablet
 
 CFLAGS = -m64 -ffreestanding -nostdlib -no-pie -mno-red-zone \
          -mno-mmx -mno-sse -mno-sse2 -fno-stack-protector \
@@ -45,7 +46,7 @@ KERNEL_SRCS = \
 KERNEL_OBJS = $(KERNEL_SRCS:.asm=.o)
 KERNEL_OBJS := $(KERNEL_OBJS:.c=.o)
 
-.PHONY: all clean run debug iso
+.PHONY: all clean run debug iso test-4k test-1080p test-720p test-144hz test-virtio
 
 all: blueos.iso disk.img
 
@@ -102,10 +103,30 @@ disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/rend
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
-	$(QEMU) -cdrom blueos.iso -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio -vga std -boot order=d -usb -device usb-tablet
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial stdio -vga std
 
 debug: blueos.iso disk.img
-	$(QEMU) -cdrom blueos.iso -drive file=disk.img,format=raw,if=ide -m 256M -serial stdio -vga std -boot order=d -usb -device usb-tablet -d cpu_reset
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial stdio -vga std -d cpu_reset
+
+test-4k: blueos.iso disk.img
+	@echo "=== BlueOS 4K (3840x2160, 512MB RAM, 64MB vgamem) ==="
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 512M -serial file:/tmp/qemu_test_4k.txt -vga std -global VGA.vgamem_mb=64
+
+test-1080p: blueos.iso disk.img
+	@echo "=== BlueOS 1080p (1920x1080, 256MB RAM) ==="
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial file:/tmp/qemu_test_1080p.txt -vga std
+
+test-720p: blueos.iso disk.img
+	@echo "=== BlueOS 720p (1280x720, 256MB RAM) ==="
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial file:/tmp/qemu_test_720p.txt -vga std
+
+test-144hz: blueos.iso disk.img
+	@echo "=== BlueOS 144Hz (OpenGL display, high refresh rate) ==="
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial file:/tmp/qemu_test_144hz.txt -vga std -display sdl,gl=on
+
+test-virtio: blueos.iso disk.img
+	@echo "=== BlueOS VirtIO VGA (virtio-gpu device) ==="
+	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial file:/tmp/qemu_test_virtio.txt -vga virtio
 
 clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img

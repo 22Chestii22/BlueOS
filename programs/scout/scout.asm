@@ -14,10 +14,10 @@ SYSCALL_GUI_DRAW_TEXT equ 31
 FONT_HEIGHT equ 16
 FONT_WIDTH  equ 8
 GUI_TITLE_HEIGHT equ 18
-WIN_W equ 660
-WIN_H equ 420
+WIN_W equ 1920
+WIN_H equ 1080
 ENTRY_START_Y equ 38
-MAX_VISIBLE equ 22
+MAX_VISIBLE equ 62
 
 COL_WHITE    equ 0x00FFFFFF
 COL_BLACK    equ 0x00000000
@@ -405,7 +405,7 @@ draw_file_entry:
     cmp byte [rdi], 0
     je .file_no_draw_size
     mov edi, [rel win_id]
-    mov esi, 250
+    mov esi, 800
     mov edx, ENTRY_START_Y
     imul edx, r15d, FONT_HEIGHT
     add edx, ENTRY_START_Y
