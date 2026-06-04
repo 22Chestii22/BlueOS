@@ -178,6 +178,31 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
             gui_draw_text((int)a1, (int)a2, (int)a3, (const char*)a4, (uint32_t)a5, (uint32_t)a6);
             return 0;
 
+        case 33:
+            if (a1)
+            {
+                int* ptr = (int*)a1;
+                ptr[0] = mouse_get_x_wrapper();
+                ptr[1] = mouse_get_y_wrapper();
+                ptr[2] = mouse_get_buttons_wrapper();
+            }
+            return 0;
+
+        case 34:
+            return process_get_count();
+
+        case 35:
+        {
+            if (a2 && a3 && a4)
+            {
+                uint32_t* pid = (uint32_t*)a2;
+                char* name = (char*)a3;
+                uint32_t* state = (uint32_t*)a4;
+                return process_get_info((int)a1, pid, name, state);
+            }
+            return -1;
+        }
+
         default:
             printf("[SYSCALL] Unknown syscall %d\n", (int)n);
             return -1;

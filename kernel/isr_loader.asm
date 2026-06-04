@@ -1,4 +1,5 @@
 BITS 64
+default abs
 
 extern isr_handler
 extern irq_handler

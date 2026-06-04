@@ -53,5 +53,7 @@ process_t* process_get_by_pid(uint32_t pid);
 int process_is_alive(uint32_t pid);
 void process_wait(uint32_t pid);
 void yield_to_scheduler(void);
+int process_get_count(void);
+int process_get_info(int index, uint32_t* pid, char* name, uint32_t* state);
 
 #endif

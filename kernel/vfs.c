@@ -37,7 +37,6 @@ static filesystem_t filesystems[MAX_FILESYSTEMS];
 static int num_filesystems = 0;
 
 static file_descriptor_t open_files[MAX_OPEN_FILES];
-static int next_fd = 3;
 
 int vfs_mount(const char* name, int device,
               int (*mount)(void*, int),

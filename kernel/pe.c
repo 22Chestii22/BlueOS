@@ -314,6 +314,7 @@ int load_pe_image(const char* path, uint64_t* entry_point, uint64_t* image_base)
 
 int pe_load_and_exec(const char* path, const char* args)
 {
+    (void)args;
     uint64_t entry_point = 0;
     uint64_t image_base = 0;
 

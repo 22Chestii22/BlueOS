@@ -28,9 +28,7 @@ typedef struct page_directory
     uint64_t physical_addr;
 } page_directory_t;
 
-static page_directory_t* kernel_dir = NULL;
 static uint32_t next_free_frame = 0;
-static uint32_t max_frames = 0;
 uint64_t kernel_cr3 = 0;
 
 #define FRAME_SIZE 0x1000

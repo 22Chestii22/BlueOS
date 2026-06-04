@@ -32,6 +32,7 @@ pd:
     resb 4096
 
 extern kernel_main
+extern kernel_main_bootloader
 
 section .text
 global _start
@@ -88,10 +89,6 @@ _start64:
 
     mov rsp, stack_top
 
-    ; BSS already zeroed by GRUB — do NOT zero again,
-    ; it would wipe out our page tables (pml4/pdpt/pd)
-    ; which live in .bss!
-
     mov rdi, rbx
     call kernel_main
 
@@ -99,6 +96,29 @@ _start64:
 halt_loop:
     hlt
     jmp halt_loop
+
+; Custom bootloader entry point
+; Called by bootloader stage2 in long mode
+; RDI = boot_info pointer
+global _start_bootloader
+_start_bootloader:
+    ; Set up stack
+    mov rsp, stack_top
+
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    mov rdi, rdi    ; boot_info already in RDI
+    call kernel_main_bootloader
+
+    cli
+.halt:
+    hlt
+    jmp .halt
 
 section .rodata
 gdt64:

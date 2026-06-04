@@ -491,6 +491,7 @@ static int fat_find_entry(const char* path, fat32_dir_entry_t* entry)
 
 static int fat_mount_impl(void* fs, int device)
 {
+    (void)fs;
     uint8_t buffer[SECTOR_SIZE];
     if (api->ata_read_sectors(0x1F0, 1, 0, 1, buffer) != 0)
         return -1;
@@ -518,6 +519,7 @@ static int fat_mount_impl(void* fs, int device)
 
 static int fat_read_impl(void* fs, const char* path, void* buffer, uint32_t size)
 {
+    (void)fs;
     fat32_dir_entry_t entry;
     if (fat_find_entry(path, &entry) != 0) return -1;
     if (entry.attr & ATTR_DIRECTORY) return -1;
@@ -554,6 +556,7 @@ static int fat_read_impl(void* fs, const char* path, void* buffer, uint32_t size
 
 static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32_t size)
 {
+    (void)fs;
     if (!path || !buffer || path[0] == 0) return -1;
     if (size == 0) return 0;
 
@@ -644,6 +647,7 @@ static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32
 
 static int fat_open_impl(void* fs, const char* path, int flags)
 {
+    (void)fs;
     fat32_dir_entry_t entry;
     if (fat_find_entry(path, &entry) == 0)
         return 1;
@@ -654,11 +658,13 @@ static int fat_open_impl(void* fs, const char* path, int flags)
 
 static int fat_close_impl(void* fs, int fd)
 {
+    (void)fs; (void)fd;
     return 0;
 }
 
 static int fat_readdir_impl(void* fs, const char* path, char* entries, int max_entries)
 {
+    (void)fs;
     fat32_dir_entry_t dir_entry;
     if (fat_find_entry(path, &dir_entry) != 0) return -1;
     if (!(dir_entry.attr & ATTR_DIRECTORY)) return -1;
@@ -744,6 +750,7 @@ done:
 
 static int fat_mkdir_impl(void* fs, const char* path)
 {
+    (void)fs;
     if (!path || path[0] == 0) return -1;
 
     fat32_dir_entry_t existing;
@@ -822,6 +829,7 @@ static int fat_mkdir_impl(void* fs, const char* path)
 
 static int fat_unlink_impl(void* fs, const char* path)
 {
+    (void)fs;
     if (!path || path[0] == 0) return -1;
 
     fat32_dir_entry_t entry;
@@ -857,6 +865,7 @@ static int fat_unlink_impl(void* fs, const char* path)
 
 static int fat_rename_impl(void* fs, const char* old_path, const char* new_path)
 {
+    (void)fs;
     fat32_dir_entry_t entry;
     if (fat_find_entry(old_path, &entry) != 0) return -1;
     if (fat_find_entry(new_path, &entry) == 0) return -1;

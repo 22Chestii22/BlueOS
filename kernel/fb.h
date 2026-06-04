@@ -25,6 +25,7 @@ void fb_draw_hline(int y, int x0, int x1, uint32_t color);
 void fb_backbuffer_alloc(void);
 void fb_clear(uint32_t color);
 void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip);
+uint32_t* fb_get_backbuffer(void);
 
 #define FB_RGB(r, g, b) (((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | (uint32_t)(b))
 #define FB_GET_R(c) (((c) >> 16) & 0xFF)
@@ -126,5 +127,13 @@ uint32_t fb_blend(uint32_t fg, uint32_t bg, uint8_t alpha);
 void fb_fillrect_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha);
 void fb_draw_glass_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha);
 void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow_color);
+
+/* DWM / glass effects */
+void fb_save_region(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t* buf);
+void fb_restore_region(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t* buf);
+void fb_blur_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius);
+void fb_blur_rect_fast(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius);
+void fb_dwm_glass(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t tint_color, uint8_t tint_alpha, int blur_radius);
+void fb_dwm_glass_glossy(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t tint_color, uint8_t tint_alpha, int blur_radius);
 
 #endif

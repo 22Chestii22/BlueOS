@@ -46,9 +46,9 @@ KERNEL_SRCS = \
 KERNEL_OBJS = $(KERNEL_SRCS:.asm=.o)
 KERNEL_OBJS := $(KERNEL_OBJS:.c=.o)
 
-.PHONY: all clean run debug iso test-4k test-1080p test-720p test-144hz test-virtio
+.PHONY: all clean run debug iso test-4k test-1080p test-720p test-144hz test-virtio bootloader
 
-all: blueos.iso disk.img
+all: blueos.iso disk.img bootloader
 
 %.o: %.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
@@ -83,6 +83,10 @@ programs/idle/idle.exe: programs/idle/idle.asm scripts/make_pe.py
 	nasm -f bin -o programs/idle/idle.bin programs/idle/idle.asm
 	python3 scripts/make_pe.py programs/idle/idle.bin programs/idle/idle.exe
 
+programs/taskman/taskman.exe: programs/taskman/taskman.asm scripts/make_pe.py
+	nasm -f bin -o programs/taskman/taskman.bin programs/taskman/taskman.asm
+	python3 scripts/make_pe.py programs/taskman/taskman.bin programs/taskman/taskman.exe
+
 modules/demo/demo.sys: modules/demo/demo.c modules/demo/demo.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/demo/demo.c -o modules/demo/demo.o
 	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/demo/demo.ld -o $@ modules/demo/demo.o
@@ -99,8 +103,17 @@ modules/timer/timer.sys: modules/timer/timer.c modules/timer/timer.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/timer/timer.c -o modules/timer/timer.o
 	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/timer/timer.ld -o $@ modules/timer/timer.o
 
-disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh
+bootloader/stage1.bin: bootloader/stage1.asm
+	nasm -f bin -o $@ $<
+
+bootloader/stage2.bin: bootloader/stage2.asm
+	nasm -f bin -o $@ $<
+
+bootloader: bootloader/stage1.bin bootloader/stage2.bin
+
+disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe programs/taskman/taskman.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh bootloader
 	./scripts/build_image.sh
+	python3 scripts/install_bootloader.py disk.img
 
 run: blueos.iso disk.img
 	$(QEMU) -cdrom blueos.iso $(QEMU_BASE) -m 256M -serial stdio -vga std
@@ -134,8 +147,10 @@ clean:
 	rm -f programs/scout/scout.bin programs/scout/scout.exe
 	rm -f programs/gui_render/render.bin programs/gui_render/render.exe
 	rm -f programs/idle/idle.bin programs/idle/idle.exe
+	rm -f programs/taskman/taskman.bin programs/taskman/taskman.exe
 	rm -f modules/keyb/keyb.o modules/keyb/keyb.sys
 	rm -f modules/mouse/mouse.o modules/mouse/mouse.sys
 	rm -f modules/timer/timer.o modules/timer/timer.sys modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
 	rm -f modules/demo/demo.o modules/demo/demo.sys
+	rm -f bootloader/stage1.bin bootloader/stage2.bin
 	rm -rf iso

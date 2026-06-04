@@ -292,6 +292,40 @@ void process_wait(uint32_t pid)
     }
 }
 
+int process_get_count(void)
+{
+    int count = 0;
+    for (int i = 0; i < MAX_PROCESSES; i++)
+    {
+        if (process_table[i].state != PROCESS_CREATED &&
+            process_table[i].state != PROCESS_TERMINATED)
+            count++;
+    }
+    return count;
+}
+
+int process_get_info(int index, uint32_t* pid, char* name, uint32_t* state)
+{
+    int count = 0;
+    for (int i = 0; i < MAX_PROCESSES; i++)
+    {
+        if (process_table[i].state != PROCESS_CREATED &&
+            process_table[i].state != PROCESS_TERMINATED)
+        {
+            if (count == index)
+            {
+                *pid = process_table[i].pid;
+                strncpy(name, process_table[i].name, PROCESS_NAME_MAX - 1);
+                name[PROCESS_NAME_MAX - 1] = 0;
+                *state = (uint32_t)process_table[i].state;
+                return 0;
+            }
+            count++;
+        }
+    }
+    return -1;
+}
+
 void process_yield(void)
 {
     if (current_process && current_process->state == PROCESS_RUNNING)

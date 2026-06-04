@@ -17,6 +17,7 @@
 #include "fb.h"
 #include "gui.h"
 #include "timer.h"
+#include "boot_info.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -145,6 +146,76 @@ void kernel_main(void* mbd, uint32_t magic)
     scheduler_init();
     load_disk_modules("\\SYSTEM\\DRIVERS");
 
+
+    pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
+    pe_spawn("\\SYSTEM\\PROGRAMS\\CMD.EXE");
+    pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
+
+    process_t* first = process_get_ready();
+    if (first)
+    {
+        uint64_t kstack = (uint64_t)first->kernel_stack + first->kernel_stack_size;
+        first->state = PROCESS_RUNNING;
+        process_set_current(first);
+        gdt_set_kernel_stack(kstack);
+        cpu_data[3] = kstack;
+        if (first->page_table)
+            paging_switch(first->page_table);
+        context_activate(first->context, kstack);
+    }
+
+    for (;;)
+        __asm__ volatile("hlt");
+}
+
+void kernel_main_bootloader(boot_info_t* boot_info)
+{
+    if (!boot_info || boot_info->magic != BOOT_INFO_MAGIC)
+    {
+        screen_set_color(COLOR_WHITE, COLOR_BLACK);
+        screen_write("Invalid boot info!\n");
+        for (;;) __asm__ volatile("hlt");
+    }
+
+    serial_init();
+
+    uint64_t mem_size = boot_info->mem_size;
+
+    screen_set_color(COLOR_WHITE, COLOR_BLACK);
+    screen_write("BlueOS x86_64 - Custom Bootloader\n");
+
+    mem_init();
+    paging_init(mem_size);
+    gdt_init();
+    idt_init();
+
+    if (boot_info->fb_addr)
+    {
+        screen_write("Framebuffer from bootloader!\n");
+        screen_write("  Address: 0x"); screen_write_hex(boot_info->fb_addr); screen_write("\n");
+        screen_write("  Width:   "); screen_write_dec(boot_info->fb_width); screen_write("\n");
+        screen_write("  Height:  "); screen_write_dec(boot_info->fb_height); screen_write("\n");
+        screen_write("  BPP:     "); screen_write_dec(boot_info->fb_bpp); screen_write("\n");
+
+        fb_init(boot_info->fb_addr, boot_info->fb_width, boot_info->fb_height,
+                boot_info->fb_pitch, boot_info->fb_bpp);
+        kernel_api.fb_width = boot_info->fb_width;
+        kernel_api.fb_height = boot_info->fb_height;
+    }
+    else
+    {
+        screen_write("No framebuffer from bootloader!\n");
+    }
+
+    vga_init();
+    gui_init();
+
+    ata_module_init(&kernel_api);
+    fat_module_init(&kernel_api);
+    process_init();
+    syscall_init();
+    scheduler_init();
+    load_disk_modules("\\SYSTEM\\DRIVERS");
 
     pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\CMD.EXE");

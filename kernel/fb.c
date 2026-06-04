@@ -12,7 +12,7 @@
 fb_info_t fb_info;
 
 static uint32_t* backbuffers[NUM_BACKBUFFERS] = {NULL};
-static uint32_t* backbuffer = NULL;
+uint32_t* backbuffer = NULL;
 static uint32_t* mapped_fb = NULL;
 static int current_buffer = 0;
 
@@ -437,6 +437,151 @@ static void fb_puts_raw(int x, int y, const char* s, uint32_t fg, uint32_t bg)
         fb_putchar_raw(x, y, s[i], fg, bg);
         x += FONT_WIDTH;
     }
+}
+
+void fb_blur_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
+{
+    if (!backbuffer) return;
+    if (w == 0 || h == 0 || radius <= 0) return;
+    if (x >= fb_info.width || y >= fb_info.height) return;
+    if (x + w > fb_info.width) w = fb_info.width - x;
+    if (y + h > fb_info.height) h = fb_info.height - y;
+
+    uint32_t stride = fb_info.pitch / 4;
+    int r = radius > 8 ? 8 : radius;
+    uint32_t* tmp = malloc(w * h * 4);
+    if (!tmp) return;
+
+    for (uint32_t row = 0; row < h; row++)
+    {
+        for (uint32_t col = 0; col < w; col++)
+        {
+            uint32_t rt = 0, gt = 0, bt = 0, cnt = 0;
+            int y0 = (int)(y + row) - r;
+            int y1 = (int)(y + row) + r;
+            for (int ky = y0; ky <= y1; ky++)
+            {
+                if (ky < 0 || (uint32_t)ky >= fb_info.height) continue;
+                uint32_t* src_line = &backbuffer[(uint32_t)ky * stride];
+                int x0 = (int)(x + col) - r;
+                int x1 = (int)(x + col) + r;
+                for (int kx = x0; kx <= x1; kx++)
+                {
+                    if (kx < 0 || (uint32_t)kx >= fb_info.width) continue;
+                    uint32_t c = src_line[kx];
+                    rt += FB_GET_R(c);
+                    gt += FB_GET_G(c);
+                    bt += FB_GET_B(c);
+                    cnt++;
+                }
+            }
+            if (cnt == 0) cnt = 1;
+            tmp[row * w + col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
+        }
+    }
+
+    for (uint32_t row = 0; row < h; row++)
+        for (uint32_t col = 0; col < w; col++)
+            backbuffer[(y + row) * stride + x + col] = tmp[row * w + col];
+
+    free(tmp);
+}
+
+void fb_blur_rect_fast(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
+{
+    if (!backbuffer) return;
+    if (w == 0 || h == 0 || radius <= 0) return;
+    if (x >= fb_info.width || y >= fb_info.height) return;
+    if (x + w > fb_info.width) w = fb_info.width - x;
+    if (y + h > fb_info.height) h = fb_info.height - y;
+
+    uint32_t stride = fb_info.pitch / 4;
+    int r = radius > 6 ? 6 : radius;
+    uint32_t* tmp = malloc(w * h * 4);
+    if (!tmp) return;
+
+    for (uint32_t row = 0; row < h; row++)
+    {
+        uint32_t* dst = &tmp[row * w];
+        for (uint32_t col = 0; col < w; col++)
+        {
+            uint32_t rt = 0, gt = 0, bt = 0, cnt = 0;
+            int ky_start = (int)(y + row) - r;
+            int ky_end = (int)(y + row) + r;
+            int kx_start = (int)(x + col) - r;
+            int kx_end = (int)(x + col) + r;
+            if (ky_start < 0) ky_start = 0;
+            if ((uint32_t)ky_end >= fb_info.height) ky_end = fb_info.height - 1;
+            if (kx_start < 0) kx_start = 0;
+            if ((uint32_t)kx_end >= fb_info.width) kx_end = fb_info.width - 1;
+            for (int ky = ky_start; ky <= ky_end; ky++)
+            {
+                uint32_t* src_line = &backbuffer[(uint32_t)ky * stride];
+                for (int kx = kx_start; kx <= kx_end; kx++)
+                {
+                    uint32_t c = src_line[kx];
+                    rt += FB_GET_R(c);
+                    gt += FB_GET_G(c);
+                    bt += FB_GET_B(c);
+                    cnt++;
+                }
+            }
+            if (cnt == 0) cnt = 1;
+            dst[col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
+        }
+    }
+
+    for (uint32_t row = 0; row < h; row++)
+        for (uint32_t col = 0; col < w; col++)
+            backbuffer[(y + row) * stride + x + col] = tmp[row * w + col];
+
+    free(tmp);
+}
+
+void fb_dwm_glass(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                  uint32_t tint_color, uint8_t tint_alpha, int blur_radius)
+{
+    if (blur_radius > 0)
+        fb_blur_rect_fast(x, y, w, h, blur_radius);
+    fb_fillrect_alpha(x, y, w, h, tint_color, tint_alpha);
+}
+
+void fb_dwm_glass_glossy(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                         uint32_t tint_color, uint8_t tint_alpha, int blur_radius)
+{
+    fb_dwm_glass(x, y, w, h, tint_color, tint_alpha, blur_radius);
+
+    uint32_t gloss = fb_blend(COL_WHITE, tint_color, 180);
+    for (uint32_t row = 0; row < h / 2; row++)
+    {
+        uint8_t ga = 30 + (uint32_t)(60 - 30) * row / (h / 2);
+        fb_fillrect_alpha(x, y + row, w, 1, gloss, ga);
+    }
+    uint32_t shadow = fb_blend(COL_BLACK, tint_color, 60);
+    fb_fillrect_alpha(x, y + h - 1, w, 1, shadow, 120);
+}
+
+void fb_save_region(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t* buf)
+{
+    if (!backbuffer || !buf) return;
+    uint32_t stride = fb_info.pitch / 4;
+    for (uint32_t row = 0; row < h; row++)
+        for (uint32_t col = 0; col < w; col++)
+            buf[row * w + col] = backbuffer[(y + row) * stride + x + col];
+}
+
+void fb_restore_region(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t* buf)
+{
+    if (!backbuffer || !buf) return;
+    uint32_t stride = fb_info.pitch / 4;
+    for (uint32_t row = 0; row < h; row++)
+        for (uint32_t col = 0; col < w; col++)
+            backbuffer[(y + row) * stride + x + col] = buf[row * w + col];
+}
+
+uint32_t* fb_get_backbuffer(void)
+{
+    return backbuffer;
 }
 
 void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip)

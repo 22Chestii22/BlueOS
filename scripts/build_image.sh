@@ -24,8 +24,9 @@ if command -v mformat &> /dev/null; then
     echo "Using mtools (no root required)..."
 
     # Format whole disk as FAT32 (superfloppy — VBR at LBA 0)
-    mformat -i "$IMAGE" -F :: 2>/dev/null || \
-        mformat -i "$IMAGE" -t 127 -h 64 -s 32 -F ::
+    # Use -R 32 for 32 reserved sectors (stage2 lives in LBA 7-30)
+    mformat -i "$IMAGE" -F :: -R 32 2>/dev/null || \
+        mformat -i "$IMAGE" -t 127 -h 64 -s 32 -R 32 -F ::
 
     # Create DOS directory structure (8.3 uppercase)
     echo "Creating DOS directory structure..."
@@ -53,6 +54,10 @@ if command -v mformat &> /dev/null; then
     if [ -f "$PROJECT_ROOT/programs/idle/idle.exe" ]; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/idle/idle.exe" ::/SYSTEM/PROGRAMS/IDLE.EXE
         echo "  IDLE.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/taskman/taskman.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/taskman/taskman.exe" ::/SYSTEM/PROGRAMS/TASKMAN.EXE
+        echo "  TASKMAN.EXE"
     fi
 
     # Copy loadable modules
@@ -125,6 +130,10 @@ else
     if [ -f "$PROJECT_ROOT/programs/idle/idle.exe" ]; then
         sudo cp "$PROJECT_ROOT/programs/idle/idle.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/IDLE.EXE
         echo "  IDLE.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/taskman/taskman.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/taskman/taskman.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/TASKMAN.EXE
+        echo "  TASKMAN.EXE"
     fi
 
     echo "Copying modules..."
