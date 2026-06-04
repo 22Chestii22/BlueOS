@@ -193,6 +193,32 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **Left column etched separators**: Two separators — one after first program (pinned/recent) and one above "All Programs".
 - **Commit discipline**: Commits pushed after changes (sessions must always end with commits).
 
+### Session 12 — Timer as Loadable .sys Module
+
+- **Problem**: Timer was the last major driver still statically linked into kernel.elf.
+  `timer_handler_and_schedule()` was called directly from `timer_isr_dispatch()` in
+  `kernel/module.c`, with no way to load it from disk. Also had chicken-and-egg issue:
+  PIT can't start until processes exist, but modules are loaded before process init.
+- **Fix**: Extract all timer/scheduling code into `kernel/timer.c` (statically linked):
+  `timer_handler_and_schedule()`, `timer_get_ticks()`, `timer_sleep()`,
+  `timer_scheduler_enable()`, `timer_init()`, `timer_start()`. The kernel's
+  `timer_isr_dispatch()` now calls `kernel/timer.c`'s `timer_handler_and_schedule()`
+  directly (removed `registered_timer_sched_handler` mechanism).
+- **`modules/timer/timer.c`**: Rewritten as thin .sys module — `module_entry()` programs
+  PIT via `api->outb()` and calls `api->timer_scheduler_enable()`. No kernel function
+  calls needed (all through API).
+- **Init order fix**: Moved `load_disk_modules()` to AFTER `process_init()` and
+  `scheduler_init()` in `main.c`. Timer.sys safely starts PIT after processes exist.
+- **New files**: `kernel/timer.c`, `modules/timer/timer.ld`
+- **API change**: Removed `register_timer_sched_handler` from `kernel_api_t`, added
+  `timer_scheduler_enable` for timer.sys to activate scheduling.
+- **Build**: `make clean && make -j$(nproc)` succeeds, zero new warnings.
+- **Test**: QEMU boot shows `[TIMER] PIT at 100 Hz, scheduling enabled` — timer loaded
+  from disk, preemptive multitasking active. No exceptions.
+- **Tag**: `v0.8.1` — "Timer as loadable .sys module from disk"
+- **Module loading complete**: All 4 loadable modules (DEMO.SYS, KEYB.SYS, MOUSE.SYS,
+  TIMER.SYS) now loaded from `/SYSTEM/DRIVERS/` at boot.
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:
