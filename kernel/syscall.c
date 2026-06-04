@@ -92,27 +92,6 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
         {
             char buf[4096];
             int r = vfs_readdir((const char*)a1, buf, sizeof(buf));
-            serial_write("[DIR] path=");
-            serial_write((const char*)a1);
-            serial_write(" ret=");
-            serial_dec(r);
-            serial_write("\n");
-            if (r > 0)
-            {
-                for (int i = 0; i < r && i < 100; i++)
-                {
-                    if (buf[i] >= 32 && buf[i] < 127)
-                        serial_write_char(buf[i]);
-                    else if (buf[i] == 0)
-                        serial_write("\\0");
-                    else
-                    {
-                        serial_write("\\x");
-                        serial_hex(buf[i]);
-                    }
-                }
-                serial_write("\n");
-            }
             uint32_t max = (uint32_t)a3;
             memset((void*)a2, 0, max);
             if (r > 0)

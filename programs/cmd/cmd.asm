@@ -668,6 +668,9 @@ parse_and_exec:
     mov rbx, rax          ; rbx = size_len
     pop r14
 
+    push rcx            ; save name_len (print_str clobbers rcx via syscall)
+    push rbx            ; save size_len
+
     push r14
     cmp byte [r14], 'D'
     jne .dir_file
@@ -704,6 +707,8 @@ parse_and_exec:
     pop r14
 
 .dir_next:
+    pop rbx             ; restore size_len
+    pop rcx             ; restore name_len
     mov r8, rcx
     add r8, rbx
     add r8, 4
