@@ -182,6 +182,17 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **Build**: Compiles cleanly (one warning fixed: unused `total_items` removed)
 - **Test**: QEMU boots cleanly
 
+### Session 11 — Radical Start Menu Redesign
+
+- **Fixed hover/click X column detection**: Hover and click handlers now check `mx < sep_x` (left column, programs) vs `mx >= sep_x` (right column, system links). Fixes: hovering "Run..." no longer highlights "Scout", clicking right column items no longer launches programs.
+- **Taller gradient header**: `XP_SM_HEADER_H` increased from 40 to 50. Header now draws a blue gradient (interpolated from dark to light blue) via per-row color interpolation. User icon is 32×32 (was 24×24). Two-line text: "Default User" + "Administrator" subtitle in lighter blue.
+- **"All Programs" button**: Added as 4th left column item (`start_left_count=4`). Styled differently — no green icon, just text + right-arrow character. Click does nothing (NULL path). Separator above it.
+- **Right column expansion**: Changed to "My Documents", "My Computer", "Help & Support", "Run..." (4 items, `start_right_count=4`). Section separator drawn between system items (index 1) and utility items (index 2).
+- **Two-column height unification**: Menu total height now based on `max(start_left_count, start_right_count)` instead of `start_left_count` alone. This ensures both columns have enough room.
+- **XP-style bottom buttons**: Log Off (left) and Shut Down (right) now drawn with `draw_win3d_rect()` button borders. Log Off highlights blue, Shut Down highlights red (`COL_XP_SM_SHUTDOWN`). Both are properly clickable with X-aware hit detection.
+- **Left column etched separators**: Two separators — one after first program (pinned/recent) and one above "All Programs".
+- **Commit discipline**: Commits pushed after changes (sessions must always end with commits).
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:
