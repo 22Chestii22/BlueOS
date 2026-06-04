@@ -86,28 +86,46 @@ void gui_clear_terminal(void)
 
 static void draw_3d_rect(int x, int y, int w, int h, int raised)
 {
-    uint32_t light = raised ? COL_WHITE : COL_DARK_GRAY;
-    uint32_t dark = raised ? COL_DARK_GRAY : COL_WHITE;
-    fb_draw_hline(y, x, x + w - 1, light);
-    fb_draw_vline(x, y, y + h - 1, light);
-    fb_draw_hline(y + h - 1, x, x + w - 1, dark);
-    fb_draw_vline(x + w - 1, y, y + h - 1, dark);
+    if (raised)
+    {
+        fb_draw_hline(y, x, x + w - 1, COL_WHITE);
+        fb_draw_vline(x, y, y + h - 1, COL_WHITE);
+        fb_draw_hline(y + h - 1, x, x + w - 1, COL_XP_BTN_SHADOW);
+        fb_draw_vline(x + w - 1, y, y + h - 1, COL_XP_BTN_SHADOW);
+    }
+    else
+    {
+        fb_draw_hline(y, x, x + w - 1, COL_XP_BTN_SHADOW);
+        fb_draw_vline(x, y, y + h - 1, COL_XP_BTN_SHADOW);
+        fb_draw_hline(y + h - 1, x, x + w - 1, COL_WHITE);
+        fb_draw_vline(x + w - 1, y, y + h - 1, COL_WHITE);
+    }
 }
 
 static void draw_win3d_rect(int x, int y, int w, int h, int raised)
 {
-    uint32_t hilite = raised ? COL_WHITE : FB_RGB(64,64,64);
-    uint32_t light = raised ? COL_LIGHT_GRAY : COL_DARK_GRAY;
-    uint32_t dark = raised ? COL_DARK_GRAY : COL_LIGHT_GRAY;
-    uint32_t shadow = raised ? FB_RGB(64,64,64) : COL_WHITE;
-    fb_draw_hline(y, x, x + w - 1, hilite);
-    fb_draw_vline(x, y, y + h - 1, hilite);
-    fb_draw_hline(y + 1, x + 1, x + w - 2, light);
-    fb_draw_vline(x + 1, y + 1, y + h - 2, light);
-    fb_draw_hline(y + h - 1, x, x + w - 1, shadow);
-    fb_draw_vline(x + w - 1, y, y + h - 1, shadow);
-    fb_draw_hline(y + h - 2, x + 1, x + w - 2, dark);
-    fb_draw_vline(x + w - 2, y + 1, y + h - 2, dark);
+    if (raised)
+    {
+        fb_draw_hline(y, x, x + w - 1, COL_WHITE);
+        fb_draw_vline(x, y, y + h - 1, COL_WHITE);
+        fb_draw_hline(y + 1, x + 1, x + w - 2, COL_XP_BTN_FACE);
+        fb_draw_vline(x + 1, y + 1, y + h - 2, COL_XP_BTN_FACE);
+        fb_draw_hline(y + h - 1, x, x + w - 1, COL_XP_BTN_SHADOW);
+        fb_draw_vline(x + w - 1, y, y + h - 1, COL_XP_BTN_SHADOW);
+        fb_draw_hline(y + h - 2, x + 1, x + w - 2, COL_XP_BTN_BORDER);
+        fb_draw_vline(x + w - 2, y + 1, y + h - 2, COL_XP_BTN_BORDER);
+    }
+    else
+    {
+        fb_draw_hline(y, x, x + w - 1, COL_XP_BTN_SHADOW);
+        fb_draw_vline(x, y, y + h - 1, COL_XP_BTN_SHADOW);
+        fb_draw_hline(y + 1, x + 1, x + w - 2, COL_XP_BTN_BORDER);
+        fb_draw_vline(x + 1, y + 1, y + h - 2, COL_XP_BTN_BORDER);
+        fb_draw_hline(y + h - 1, x, x + w - 1, COL_WHITE);
+        fb_draw_vline(x + w - 1, y, y + h - 1, COL_WHITE);
+        fb_draw_hline(y + h - 2, x + 1, x + w - 2, COL_XP_BTN_FACE);
+        fb_draw_vline(x + w - 2, y + 1, y + h - 2, COL_XP_BTN_FACE);
+    }
 }
 
 static void bring_to_front(int idx)
@@ -128,18 +146,18 @@ static void draw_menu_dropdown(gui_menu_t* menu)
     int item_h = FONT_HEIGHT + 4;
     int dh = menu->num_items * item_h + 2;
 
-    fb_fillrect(dx, dy, GUI_MENU_DROPDOWN_W, dh, COL_WHITE);
-    draw_3d_rect(dx, dy, GUI_MENU_DROPDOWN_W, dh, 0);
+    fb_fillrect(dx, dy, GUI_MENU_DROPDOWN_W, dh, COL_XP_MENU_BG);
+    draw_win3d_rect(dx, dy, GUI_MENU_DROPDOWN_W, dh, 1);
 
     for (int i = 0; i < menu->num_items; i++)
     {
         int iy = dy + 1 + i * item_h;
-        uint32_t bg = COL_WHITE;
+        uint32_t bg = COL_XP_MENU_BG;
         uint32_t fg = menu->items[i].enabled ? COL_BLACK : COL_LIGHT_GRAY;
 
         if (menu->hovered == i && menu->items[i].enabled)
         {
-            bg = COL_WIN_BLUE;
+            bg = COL_XP_MENU_HIGHLIGHT;
             fg = COL_WHITE;
         }
 
@@ -150,8 +168,8 @@ static void draw_menu_dropdown(gui_menu_t* menu)
 
 static void draw_menu_bar(void)
 {
-    fb_fillrect(0, 0, fb_info.width, GUI_MENU_HEIGHT, COL_LIGHT_GRAY);
-    draw_3d_rect(0, 0, fb_info.width, GUI_MENU_HEIGHT, 0);
+    fb_fillrect(0, 0, fb_info.width, GUI_MENU_HEIGHT, COL_XP_BTN_FACE);
+    draw_win3d_rect(0, 0, fb_info.width, GUI_MENU_HEIGHT, 0);
 
     int x = 4;
     for (int i = 0; i < num_menus; i++)
@@ -159,7 +177,7 @@ static void draw_menu_bar(void)
         menus[i].x = x;
         int label_w = strlen(menus[i].label) * FONT_WIDTH;
 
-        uint32_t bg = menus[i].is_open ? COL_WIN_BLUE : COL_LIGHT_GRAY;
+        uint32_t bg = menus[i].is_open ? COL_XP_MENU_HIGHLIGHT : COL_XP_BTN_FACE;
         uint32_t fg = menus[i].is_open ? COL_WHITE : COL_BLACK;
 
         fb_fillrect(x - 2, 0, label_w + 4, GUI_MENU_HEIGHT, bg);
@@ -173,7 +191,7 @@ static void draw_menu_bar(void)
 
     const char* title = "BlueOS";
     int tx = fb_info.width - strlen(title) * FONT_WIDTH - 6;
-    fb_drawstring(tx, 2, title, COL_BLACK, COL_LIGHT_GRAY);
+    fb_drawstring(tx, 2, title, COL_DARK_GRAY, COL_XP_BTN_FACE);
 }
 
 static void draw_desktop_icons(void)
@@ -202,7 +220,7 @@ static void draw_start_submenu(void)
     int smx = 2 + GUI_START_DROPDOWN_W;
     int smy = my + 2;
 
-    fb_fillrect(smx, smy, GUI_START_DROPDOWN_W, smh, COL_LIGHT_GRAY);
+    fb_fillrect(smx, smy, GUI_START_DROPDOWN_W, smh, COL_XP_BTN_FACE);
     draw_win3d_rect(smx, smy, GUI_START_DROPDOWN_W, smh, 1);
 
     for (int i = 0; i < submenu_num_items; i++)
@@ -214,7 +232,7 @@ static void draw_start_submenu(void)
 
         if (start_submenu_hovered == i)
         {
-            bg = COL_WIN_BLUE2;
+            bg = COL_XP_HIGHLIGHT;
             fg = COL_WHITE;
         }
 
@@ -233,7 +251,7 @@ static void draw_start_menu(void)
     int mx = 2;
     int my = tby - mh;
 
-    fb_fillrect(mx, my, GUI_START_DROPDOWN_W, mh, COL_LIGHT_GRAY);
+    fb_fillrect(mx, my, GUI_START_DROPDOWN_W, mh, COL_XP_BTN_FACE);
     draw_win3d_rect(mx, my, GUI_START_DROPDOWN_W, mh, 1);
 
     for (int i = 0; i < start_num_items; i++)
@@ -245,7 +263,7 @@ static void draw_start_menu(void)
 
         if (start_menu_hovered == i)
         {
-            bg = COL_WIN_BLUE2;
+            bg = COL_XP_HIGHLIGHT;
             fg = COL_WHITE;
         }
 
@@ -261,38 +279,47 @@ static void draw_start_menu(void)
 
 static void draw_window_title_bar(gui_window_t* w, int active)
 {
-    uint32_t bg = active ? COL_WIN_BLUE2 : COL_DARK_GRAY;
-    uint32_t fg = active ? COL_WHITE : COL_LIGHT_GRAY;
-
-    fb_fillrect(w->x, w->y, w->w, GUI_TITLE_HEIGHT, bg);
+    int x = w->x, y = w->y, tw = w->w;
+    uint32_t fg, border_col;
 
     if (active)
     {
-        fb_draw_hline(w->y, w->x, w->x + w->w - 1, FB_RGB(0x66,0x88,0xFF));
-        fb_draw_hline(w->y + GUI_TITLE_HEIGHT - 1, w->x, w->x + w->w - 1, FB_RGB(0,0,0x55));
+        int half = GUI_TITLE_HEIGHT / 2;
+        fb_fillrect(x, y, tw, half, COL_XP_TITLE_TOP);
+        fb_fillrect(x, y + half, tw, GUI_TITLE_HEIGHT - half, COL_XP_TITLE_BOTTOM);
+        fb_draw_hline(y, x, x + tw - 1, COL_XP_TITLE_TOP);
+        fb_draw_hline(y + GUI_TITLE_HEIGHT - 1, x, x + tw - 1, COL_XP_TITLE_BORDER);
+        fg = COL_XP_TITLE_TEXT;
+        border_col = COL_XP_WINDOW_BORDER_ACTIVE;
     }
     else
     {
-        fb_draw_hline(w->y, w->x, w->x + w->w - 1, COL_LIGHT_GRAY);
-        fb_draw_hline(w->y + GUI_TITLE_HEIGHT - 1, w->x, w->x + w->w - 1, COL_BLACK);
+        int half = GUI_TITLE_HEIGHT / 2;
+        fb_fillrect(x, y, tw, half, COL_XP_TITLE_INACT_TOP);
+        fb_fillrect(x, y + half, tw, GUI_TITLE_HEIGHT - half, COL_XP_TITLE_INACT_BOTTOM);
+        fb_draw_hline(y, x, x + tw - 1, COL_XP_TITLE_INACT_TOP);
+        fb_draw_hline(y + GUI_TITLE_HEIGHT - 1, x, x + tw - 1, COL_XP_BTN_SHADOW);
+        fg = COL_XP_TITLE_INACT_TEXT;
+        border_col = COL_XP_WINDOW_BORDER_INACT;
     }
 
-    fb_drawstring(w->x + 3, w->y + 2, w->title, fg, bg);
+    uint32_t title_bg = active ? COL_XP_TITLE_BOTTOM : COL_XP_TITLE_INACT_BOTTOM;
+    fb_drawstring(x + 3, y + 2, w->title, fg, title_bg);
 
-    int cap_y = w->y + 2;
+    int cap_y = y + 2;
 
     if (!w->minimized)
     {
-        int min_x = w->x + w->w - 33;
-        fb_fillrect(min_x + 1, cap_y, 14, 14, COL_LIGHT_GRAY);
-        draw_3d_rect(min_x + 1, cap_y, 14, 14, 1);
+        int min_x = x + tw - 33;
+        fb_fillrect(min_x, cap_y, 15, 14, COL_XP_BTN_FACE);
+        draw_win3d_rect(min_x, cap_y, 15, 14, 1);
         fb_draw_hline(cap_y + 11, min_x + 4, min_x + 10, COL_BLACK);
     }
 
-    int close_x = w->x + w->w - 17;
-    fb_fillrect(close_x + 1, cap_y, 14, 14, COL_LIGHT_GRAY);
-    draw_3d_rect(close_x + 1, cap_y, 14, 14, 1);
-    fb_drawstring(close_x + 4, cap_y + 1, "X", COL_BLACK, COL_LIGHT_GRAY);
+    int close_x = x + tw - 17;
+    fb_fillrect(close_x, cap_y, 15, 14, COL_XP_BTN_FACE);
+    draw_win3d_rect(close_x, cap_y, 15, 14, 1);
+    fb_drawstring(close_x + 4, cap_y + 1, "X", COL_BLACK, COL_XP_BTN_FACE);
 }
 
 static void draw_window_content(gui_window_t* w)
@@ -396,15 +423,17 @@ static void draw_window(int idx)
 
     int active = (idx == active_window);
 
-    fb_fillrect(w->x + 1, w->y + GUI_TITLE_HEIGHT + 1, w->w - 2, w->h - GUI_TITLE_HEIGHT - 2, COL_LIGHT_GRAY);
+    fb_fillrect(w->x + 1, w->y + GUI_TITLE_HEIGHT + 1, w->w - 2, w->h - GUI_TITLE_HEIGHT - 2, COL_XP_BTN_FACE);
 
     draw_window_title_bar(w, active);
 
-    draw_3d_rect(w->x, w->y, w->w, w->h, 1);
+    uint32_t border = active ? COL_XP_WINDOW_BORDER_ACTIVE : COL_XP_WINDOW_BORDER_INACT;
+    fb_draw_hline(w->y, w->x, w->x + w->w - 1, border);
+    fb_draw_vline(w->x, w->y, w->y + w->h - 1, border);
+    fb_draw_hline(w->y + w->h - 1, w->x, w->x + w->w - 1, border);
+    fb_draw_vline(w->x + w->w - 1, w->y, w->y + w->h - 1, border);
 
     draw_window_content(w);
-
-    fb_draw_hline(w->y + w->h - 1, w->x, w->x + w->w - 1, COL_DARK_GRAY);
 
     for (int b = 0; b < w->num_buttons; b++)
     {
@@ -414,9 +443,9 @@ static void draw_window(int idx)
         int bw = btn->w * FONT_WIDTH;
         int bh = FONT_HEIGHT + 4;
 
-        fb_fillrect(bx, by, bw, bh, COL_LIGHT_GRAY);
-        draw_3d_rect(bx, by, bw, bh, 1);
-        fb_drawstring(bx + 2, by + 2, btn->label, COL_BLACK, COL_LIGHT_GRAY);
+        fb_fillrect(bx, by, bw, bh, COL_XP_BTN_FACE);
+        draw_win3d_rect(bx, by, bw, bh, 1);
+        fb_drawstring(bx + 2, by + 2, btn->label, COL_BLACK, COL_XP_BTN_FACE);
     }
 }
 
@@ -1119,20 +1148,18 @@ static void draw_taskbar(void)
 {
     int tby = fb_info.height - GUI_TASK_HEIGHT;
 
-    fb_fillrect(0, tby, fb_info.width, GUI_TASK_HEIGHT, COL_LIGHT_GRAY);
+    fb_fillrect(0, tby, fb_info.width, GUI_TASK_HEIGHT, COL_XP_TASKBAR);
     fb_draw_hline(tby, 0, fb_info.width - 1, COL_WHITE);
-    fb_draw_vline(0, tby, fb_info.height - 1, COL_WHITE);
-    fb_draw_vline(fb_info.width - 1, tby, fb_info.height - 1, COL_DARK_GRAY);
 
     int start_x = 2;
     int start_y = tby + 2;
     int start_w = GUI_START_BUTTON_W;
     int start_h = GUI_TASK_HEIGHT - 4;
 
-    uint32_t start_bg = start_menu_open ? FB_RGB(0,0,0x80) : COL_LIGHT_GRAY;
-    uint32_t start_fg = start_menu_open ? COL_WHITE : COL_BLACK;
+    uint32_t start_bg = start_menu_open ? FB_RGB(0,0,0x80) : COL_WHITE;
+    uint32_t start_fg = COL_XP_START_GREEN;
     fb_fillrect(start_x, start_y, start_w, start_h, start_bg);
-    draw_3d_rect(start_x, start_y, start_w, start_h, !start_menu_open);
+    draw_win3d_rect(start_x, start_y, start_w, start_h, !start_menu_open);
     fb_drawstring(start_x + 6, start_y + 2, "Start", start_fg, start_bg);
 
     char buf[64];
@@ -1156,7 +1183,7 @@ static void draw_taskbar(void)
     }
     buf[len] = 0;
     int sinfo_x = fb_info.width - len * FONT_WIDTH - 6;
-    fb_drawstring(sinfo_x, tby + 4, buf, COL_BLACK, COL_LIGHT_GRAY);
+    fb_drawstring(sinfo_x, tby + 4, buf, COL_WHITE, COL_XP_TASKBAR);
 
     int bx = start_x + start_w + 4;
     int sinfo_w = (len > 0 ? len * FONT_WIDTH + 8 : 0);
@@ -1176,33 +1203,25 @@ static void draw_taskbar(void)
         }
 
         int is_active = (i == active_window) && !windows[i].minimized;
-        int is_min = windows[i].minimized;
 
-        fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_LIGHT_GRAY);
+        fb_fillrect(bx, tby + 2, bw, GUI_TASK_HEIGHT - 4, COL_XP_BTN_FACE);
 
         if (is_active)
         {
-            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_DARK_GRAY);
-            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
+            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_XP_BTN_SHADOW);
+            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_XP_BTN_SHADOW);
             fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_WHITE);
             fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
-        }
-        else if (is_min)
-        {
-            fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_LIGHT_GRAY);
-            fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_LIGHT_GRAY);
-            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_LIGHT_GRAY);
-            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_LIGHT_GRAY);
         }
         else
         {
             fb_draw_hline(tby + 2, bx, bx + bw - 1, COL_WHITE);
             fb_draw_vline(bx, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_WHITE);
-            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_DARK_GRAY);
-            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_DARK_GRAY);
+            fb_draw_hline(tby + GUI_TASK_HEIGHT - 3, bx, bx + bw - 1, COL_XP_BTN_SHADOW);
+            fb_draw_vline(bx + bw - 1, tby + 2, tby + GUI_TASK_HEIGHT - 3, COL_XP_BTN_SHADOW);
         }
 
-        fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_LIGHT_GRAY);
+        fb_drawstring(bx + 4, tby + 4, windows[i].title, COL_BLACK, COL_XP_BTN_FACE);
         bx += bw + 2;
     }
 }
