@@ -219,6 +219,28 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **Module loading complete**: All 4 loadable modules (DEMO.SYS, KEYB.SYS, MOUSE.SYS,
   TIMER.SYS) now loaded from `/SYSTEM/DRIVERS/` at boot.
 
+### Session 15
+
+- **Fixed empty GUI windows (root cause)**: `gui_create()` and `gui_ensure_pixels()` in `kernel/gui.c` allocated pixel buffers via `malloc()` from a shared 16MB heap. When the heap was exhausted by backbuffers (~8MB for 2×1280×800×4) plus process data, `malloc()` returned NULL for Scout/TaskMan pixel buffers → windows rendered blank.
+  - Fix: Added `gui_alloc_pages()` — page-level allocator at `GUI_PIXEL_VADDR_BASE=0x3000000` using `paging_alloc_frame()` + `map_page()`.
+  - Added `gui_pixel_alloc()` helper: tries `malloc()` first, falls back to page allocation.
+  - Applied to both `gui_create()` and `gui_ensure_pixels()`.
+  - Added overflow protection (`uint64_t` size check before `uint32_t` cast).
+
+- **Performance: `draw_window_content()` now writes directly to backbuffer** (`kernel/gui.c`):
+  - Exposed `backbuffer` pointer via `fb_get_backbuffer()` in `fb.c`/`fb.h`.
+  - Non-terminal window pixel blit writes directly to backbuffer array instead of calling `fb_putpixel()` per pixel — eliminates bounds checks and function call overhead for ~1M pixels per window per frame.
+  - Cursor rendering also uses direct backbuffer access.
+
+- **Fixed missing DWM/glass function declarations** (`kernel/fb.h`):
+  - Added declarations for `fb_save_region`, `fb_restore_region`, `fb_blur_rect`, `fb_blur_rect_fast`, `fb_dwm_glass`, `fb_dwm_glass_glossy` — were already defined in `fb.c` but never declared in header.
+  - Added `uint32_t* fb_get_backbuffer(void)` for direct backbuffer access.
+
+- **Improved Start Menu → "Computer"** (`kernel/gui.c`): Now prints system info (resolution, heap usage, frame usage, process count) to serial output.
+
+- **Build**: 0 warnings, 5/5 QEMU tests pass.
+- **Tag**: `v0.9.1` — "Fix empty GUI windows with page-level pixel buffer fallback"
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:
