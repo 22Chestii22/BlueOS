@@ -321,6 +321,7 @@ draw_dir_entry:
     lea rdi, [rel line_buf]
     add rdi, rax
     mov byte [rdi], '\'
+    mov byte [rdi + 1], 0
 
     mov edi, [rel win_id]
     xor esi, esi

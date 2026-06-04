@@ -73,6 +73,8 @@ static int num_desktop_icons = 1;
 int gui_create_terminal(const char* title, int w, int h)
 {
     gui_terminal_win = gui_create(title, w, h);
+    if (gui_terminal_win >= 0)
+        windows[gui_terminal_win].is_terminal = 1;
     return gui_terminal_win;
 }
 
@@ -373,50 +375,88 @@ static void draw_start_menu(void)
     fb_drawstring(shutdown_x + 66, shutdown_btn_y + 2, "\x10", COL_WHITE, FB_RGB(0x80, 0x30, 0x30));
 }
 
+static void fb_draw_rect_outline(int x, int y, int w, int h, uint32_t color)
+{
+    fb_draw_hline(y, x, x + w - 1, color);
+    fb_draw_hline(y + h - 1, x, x + w - 1, color);
+    fb_draw_vline(x, y, y + h - 1, color);
+    fb_draw_vline(x + w - 1, y, y + h - 1, color);
+}
+
 static void draw_window_title_bar(gui_window_t* w, int active)
 {
     int x = w->x, y = w->y, tw = w->w;
     uint32_t fg, border_col;
 
-    uint32_t glow_col;
-
     if (active)
     {
-        glow_col = COL_W7_AERO_GLOW_ACT;
         fg = COL_BLACK;
-        border_col = FB_RGB(0x70, 0x70, 0x70);
+        border_col = FB_RGB(0x40, 0x60, 0x90);
     }
     else
     {
-        glow_col = COL_W7_AERO_GLOW;
         fg = FB_RGB(0x60, 0x60, 0x60);
-        border_col = FB_RGB(0xA0, 0xA0, 0xA0);
+        border_col = FB_RGB(0x90, 0x90, 0x90);
     }
 
-    /* Aero glass background with gradient */
+    /* Aero Glass background with proper gradient and glossy reflection */
     for (int row = 0; row < GUI_TITLE_HEIGHT; row++)
     {
-        uint8_t alpha = 180 + (uint32_t)(60 * row) / GUI_TITLE_HEIGHT;
-        uint32_t col = active ? FB_RGB(0xE8, 0xF0, 0xF8) : FB_RGB(0xE0, 0xE0, 0xE0);
-        fb_fillrect_alpha(x, y + row, tw, 1, col, alpha);
+        uint32_t col;
+        if (active)
+        {
+            uint8_t v = 0xE0 + (uint32_t)(0xF8 - 0xE0) * row / GUI_TITLE_HEIGHT;
+            col = FB_RGB(v, v + 4, v + 8);
+        }
+        else
+        {
+            uint8_t v = 0xD8 + (uint32_t)(0xE8 - 0xD8) * row / GUI_TITLE_HEIGHT;
+            col = FB_RGB(v, v, v);
+        }
+        /* Semi-transparent glass */
+        uint8_t alpha = 160 + (uint32_t)(80 * row) / GUI_TITLE_HEIGHT;
+        fb_fillrect_alpha((uint32_t)x, (uint32_t)(y + row), (uint32_t)tw, 1, col, alpha);
     }
 
-    /* Glass reflection line at top */
-    fb_draw_hline(y + 1, x + 2, x + tw - 3, FB_RGB(0xFF, 0xFF, 0xFF));
-    /* Bottom border line */
-    fb_draw_hline(y + GUI_TITLE_HEIGHT - 1, x, x + tw - 1, border_col);
-    /* Left/right borders */
+    /* Aero glossy reflection at top - brighter strip */
+    for (int col = 2; col < tw - 2; col++)
+    {
+        uint32_t c = fb_getpixel((uint32_t)(x + col), (uint32_t)(y + 1));
+        fb_putpixel((uint32_t)(x + col), (uint32_t)(y + 1), fb_blend(COL_WHITE, c, 120));
+        if (col > 4 && col < tw - 4)
+        {
+            c = fb_getpixel((uint32_t)(x + col), (uint32_t)(y + 2));
+            fb_putpixel((uint32_t)(x + col), (uint32_t)(y + 2), fb_blend(COL_WHITE, c, 60));
+        }
+    }
+
+    /* Active window glow effect - colored border glow */
     if (active)
     {
-        fb_draw_vline(x, y, y + GUI_TITLE_HEIGHT - 1, border_col);
-        fb_draw_vline(x + tw - 1, y, y + GUI_TITLE_HEIGHT - 1, border_col);
+        for (int off = -2; off <= 2; off++)
+        {
+            if (off == 0) continue;
+            int gx = x + off;
+            if (gx < 0 || (uint32_t)gx >= fb_info.width) continue;
+            uint32_t glow = fb_blend(COL_W7_AERO_GLOW_ACT, FB_RGB(0x00, 0x33, 0x66), (uint8_t)(60 - (uint32_t)(off < 0 ? -off : off) * 20));
+            fb_draw_vline(gx, y, y + GUI_TITLE_HEIGHT - 1, glow);
+        }
+        fb_draw_vline(x - 1, y, y + GUI_TITLE_HEIGHT - 1, FB_RGB(0x00, 0x40, 0x80));
+        fb_draw_vline(x + tw, y, y + GUI_TITLE_HEIGHT - 1, FB_RGB(0x00, 0x40, 0x80));
+    }
+
+    /* Bottom border */
+    fb_draw_hline(y + GUI_TITLE_HEIGHT - 1, x, x + tw - 1, border_col);
+    if (active)
+    {
+        fb_draw_hline(y + GUI_TITLE_HEIGHT - 2, x + 1, x + tw - 2, FB_RGB(0x60, 0x80, 0xB0));
     }
 
     /* Title text with glow */
-    int tx = x + 6;
+    int tx = x + 8;
     if (active)
     {
-        fb_draw_glow_text(tx, y + 4, w->title, fg, glow_col);
+        fb_draw_glow_text(tx, y + 4, w->title, fg, COL_W7_AERO_GLOW_ACT);
     }
     else
     {
@@ -424,24 +464,35 @@ static void draw_window_title_bar(gui_window_t* w, int active)
     }
 
     int cap_y = y + (GUI_TITLE_HEIGHT - 16) / 2;
+    int btn_size = 16;
+    int btn_gap = 2;
 
-    /* Minimize button — Aero style */
+    /* Close button — Aero red (always visible) */
+    int close_x = x + tw - btn_size - 2;
+    fb_fillrect(close_x, cap_y, btn_size, btn_size, COL_W7_AERO_CLOSE);
+    fb_fillrect(close_x + 3, cap_y + 3, btn_size - 6, btn_size - 6, FB_RGB(0xC0, 0x20, 0x20));
+    fb_drawstring(close_x + 4, cap_y + 1, "X", COL_WHITE, FB_RGB(0xC0, 0x20, 0x20));
+    /* Close button white glow highlight */
+    fb_draw_hline(cap_y, close_x + 2, close_x + btn_size - 3, FB_RGB(0xFF, 0x80, 0x80));
+
+    /* Maximize button */
+    int max_x = close_x - btn_size - btn_gap;
     if (!w->minimized)
     {
-        int min_x = x + tw - 52;
-        fb_fillrect(min_x, cap_y, 16, 16, FB_RGB(0xE0, 0xE0, 0xE0));
-        fb_draw_hline(cap_y + 12, min_x + 4, min_x + 11, COL_W7_AERO_MIN);
+        fb_fillrect(max_x, cap_y, btn_size, btn_size, FB_RGB(0xE8, 0xE8, 0xE8));
+        draw_3d_rect(max_x, cap_y, btn_size, btn_size, 1);
+        fb_draw_rect_outline(max_x + 4, cap_y + 3, 8, 7, FB_RGB(0x40, 0x40, 0x40));
+        fb_draw_rect_outline(max_x + 3, cap_y + 5, 8, 7, FB_RGB(0x60, 0x60, 0x60));
     }
 
-    /* Close button — Aero red */
-    int close_x = x + tw - 34;
-    fb_fillrect(close_x, cap_y, 16, 16, COL_W7_AERO_CLOSE);
-    fb_drawstring(close_x + 4, cap_y + 1, "X", COL_WHITE, COL_W7_AERO_CLOSE);
-
-    /* Maximize button — optional */
-    int max_x = x + tw - 70;
-    fb_fillrect(max_x, cap_y, 16, 16, FB_RGB(0xE0, 0xE0, 0xE0));
-    draw_3d_rect(max_x, cap_y, 16, 16, 1);
+    /* Minimize button */
+    if (!w->minimized)
+    {
+        int min_x = max_x - btn_size - btn_gap;
+        fb_fillrect(min_x, cap_y, btn_size, btn_size, FB_RGB(0xE8, 0xE8, 0xE8));
+        draw_3d_rect(min_x, cap_y, btn_size, btn_size, 1);
+        fb_draw_hline(cap_y + 12, min_x + 4, min_x + 11, COL_W7_AERO_MIN);
+    }
 }
 
 static void draw_window_content(gui_window_t* w)
@@ -451,34 +502,57 @@ static void draw_window_content(gui_window_t* w)
     int cw = w->w - 2;
     int ch = w->h - GUI_TITLE_HEIGHT - 3;
 
-    fb_fillrect(cx, cy, cw, ch, COL_WHITE);
-
-    if (w->pixels && w->pw > 0 && w->ph > 0)
+    if (w->is_terminal)
     {
-        for (int row = 0; row < w->ph && row < ch; row++)
+        /* Dark terminal theme */
+        fb_fillrect(cx, cy, cw, ch, FB_RGB(0x0C, 0x0C, 0x0C));
+
+        /* Subtle top glow line */
+        fb_draw_hline(cy, cx + 1, cx + cw - 2, FB_RGB(0x1A, 0x1A, 0x2A));
+
+        if (w->content)
         {
-            for (int col = 0; col < w->pw && col < cw; col++)
+            for (int row = 0; row < w->ch && row < ch / FONT_HEIGHT; row++)
             {
-                uint32_t color = w->pixels[row * w->pw + col];
-                if (color != 0xFFFFFFFF)
-                    fb_putpixel((uint32_t)(cx + col), (uint32_t)(cy + row), color);
+                for (int col = 0; col < w->cw && col < cw / FONT_WIDTH; col++)
+                {
+                    char c = w->content[row * w->cw + col];
+                    if (c && c != ' ')
+                        fb_drawchar(cx + col * FONT_WIDTH, cy + row * FONT_HEIGHT,
+                                    c, FB_RGB(0xCC, 0xCC, 0xCC), FB_RGB(0x0C, 0x0C, 0x0C));
+                }
             }
         }
     }
     else
     {
-        printf("[DWC] NO PIXELS or zero size\n");
-    }
+        fb_fillrect(cx, cy, cw, ch, COL_WHITE);
 
-    if (w->content)
-    {
-        for (int row = 0; row < w->ch && row < ch / FONT_HEIGHT; row++)
+        if (w->pixels && w->pw > 0 && w->ph > 0)
         {
-            for (int col = 0; col < w->cw && col < cw / FONT_WIDTH; col++)
+            for (int row = 0; row < w->ph && row < ch; row++)
             {
-                char c = w->content[row * w->cw + col];
-                if (c)
-                    fb_drawchar(cx + col * FONT_WIDTH, cy + row * FONT_HEIGHT, c, COL_BLACK, COL_WHITE);
+                uint32_t* pix_row = &w->pixels[(uint32_t)(row * w->pw)];
+                for (int col = 0; col < w->pw && col < cw; col++)
+                {
+                    uint32_t color = pix_row[col];
+                    if (color != 0xFFFFFFFF)
+                        fb_putpixel((uint32_t)(cx + col), (uint32_t)(cy + row), color);
+                }
+            }
+        }
+
+        if (w->content)
+        {
+            for (int row = 0; row < w->ch && row < ch / FONT_HEIGHT; row++)
+            {
+                for (int col = 0; col < w->cw && col < cw / FONT_WIDTH; col++)
+                {
+                    char c = w->content[row * w->cw + col];
+                    if (c)
+                        fb_drawchar(cx + col * FONT_WIDTH, cy + row * FONT_HEIGHT,
+                                    c, COL_BLACK, COL_WHITE);
+                }
             }
         }
     }
@@ -1203,11 +1277,6 @@ void gui_puts(int idx, const char* str)
 {
     for (int i = 0; str[i]; i++)
         gui_putchar(idx, str[i]);
-    serial_write("[GUI:");
-    serial_dec(idx);
-    serial_write(" '");
-    serial_write(str);
-    serial_write("']\n");
 }
 
 void gui_clear(int idx)
@@ -1313,7 +1382,19 @@ static void draw_taskbar(void)
     }
 
     /* Top glass highlight */
-    fb_draw_hline(tby, 0, fb_info.width - 1, FB_RGB(0x50, 0x50, 0x58));
+    fb_draw_hline(tby, 0, fb_info.width - 1, FB_RGB(0x60, 0x60, 0x68));
+
+    /* Aero glass reflection overlay — glossy stripe near top */
+    for (int col = 0; col < (int)fb_info.width; col++)
+    {
+        uint32_t bg = fb_getpixel((uint32_t)col, (uint32_t)(tby + 1));
+        fb_putpixel((uint32_t)col, (uint32_t)(tby + 1), fb_blend(COL_WHITE, bg, 80));
+        if (col > 10 && col < (int)fb_info.width - 10)
+        {
+            bg = fb_getpixel((uint32_t)col, (uint32_t)(tby + 2));
+            fb_putpixel((uint32_t)col, (uint32_t)(tby + 2), fb_blend(COL_WHITE, bg, 40));
+        }
+    }
 
     /* Start Orb button */
     int orb_x = 4;
@@ -1416,7 +1497,19 @@ void gui_render(void)
 
     fb_backbuffer_alloc();
 
-    fb_clear(GUI_DESKTOP_COL);
+    /* Gradient desktop background */
+    {
+        uint32_t hw = fb_info.width;
+        uint32_t hh = fb_info.height;
+        for (uint32_t row = 0; row < hh; row++)
+        {
+            uint8_t r, g, b;
+            r = 0x0A + (uint32_t)(0x2A - 0x0A) * row / hh;
+            g = 0x3A + (uint32_t)(0x6A - 0x3A) * row / hh;
+            b = 0x70 + (uint32_t)(0xA0 - 0x70) * row / hh;
+            fb_draw_hline((int)row, 0, (int)(hw - 1), FB_RGB(r, g, b));
+        }
+    }
 
     {
         int mmx = mouse_get_x_wrapper();

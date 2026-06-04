@@ -7,7 +7,7 @@
 #include "font.h"
 #include "io.h"
 
-#define NUM_BACKBUFFERS 3
+#define NUM_BACKBUFFERS 2
 
 fb_info_t fb_info;
 
@@ -47,9 +47,13 @@ void fb_backbuffer_alloc(void)
         backbuffers[i] = (uint32_t*)malloc(size);
         if (backbuffers[i])
             memset(backbuffers[i], 0, size);
+        else
+            printf("[FB] Failed to allocate backbuffer %d\n", i);
     }
     backbuffer = backbuffers[0];
     current_buffer = 0;
+    printf("[FB] Triple buffering: %d buffers, %d KB each\n",
+           NUM_BACKBUFFERS, size / 1024);
 }
 
 static void putpixel_raw(uint32_t x, uint32_t y, uint32_t color)
@@ -215,7 +219,6 @@ static void fb_swap_buffers(void)
     int next = (current_buffer + 1) % NUM_BACKBUFFERS;
     current_buffer = next;
     backbuffer = backbuffers[current_buffer];
-    memset(backbuffer, 0, fb_info.height * fb_info.pitch);
 }
 
 void fb_blit(void)

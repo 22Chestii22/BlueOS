@@ -77,6 +77,7 @@ typedef struct {
     gui_event_t event_queue[GUI_EVENT_QUEUE_SIZE];
     int event_head;
     int event_tail;
+    int is_terminal;
 } gui_window_t;
 
 void gui_init(void);
