@@ -8,6 +8,7 @@
 #include "pe.h"
 #include "module.h"
 #include "paging.h"
+#include "process.h"
 
 static gui_window_t windows[GUI_MAX_WINDOWS];
 static int num_windows = 0;
@@ -50,7 +51,13 @@ static uint32_t* gui_alloc_pages(uint32_t size)
 
 static int gui_pixel_alloc(gui_window_t* w)
 {
-    uint32_t alloc_size = (uint32_t)(w->pw * w->ph * 4);
+    uint64_t alloc_size64 = (uint64_t)w->pw * (uint64_t)w->ph * 4;
+    if (alloc_size64 > 0xFFFFFFFF)
+    {
+        printf("[GUI] Pixel buffer too large for '%s' (%llu bytes)\n", w->title, alloc_size64);
+        return 0;
+    }
+    uint32_t alloc_size = (uint32_t)alloc_size64;
     w->pixels = malloc(alloc_size);
     if (w->pixels)
     {
@@ -774,8 +781,16 @@ static void handle_start_menu_click(int mx, int my)
         }
         else if (strcmp(start_right_items[idx], "Computer") == 0)
         {
+            printf("\n=== BlueOS System Information ===\n");
+            printf("  Resolution: %dx%d %dbpp\n", fb_info.width, fb_info.height, fb_info.bpp);
+            printf("  Heap: %d KB used / %d KB free\n",
+                   mem_get_used() / 1024, mem_get_free() / 1024);
+            printf("  Frames: %d used / %d total\n",
+                   paging_get_used_frames(), paging_get_total_frames());
+            int pcount = process_get_count();
+            printf("  Processes: %d\n", pcount);
             if (gui_terminal_win >= 0)
-                gui_puts(gui_terminal_win, "\nComputer: BlueOS x86_64\n\n");
+                gui_puts(gui_terminal_win, "\nSystem info printed to serial.\n\n");
         }
         else if (strcmp(start_right_items[idx], "Documents") == 0)
         {
