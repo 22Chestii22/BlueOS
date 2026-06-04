@@ -147,6 +147,12 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **gui.c**: Added serial debug output for `gui_puts`.
 - **Added auto-exec `dir` on CMD startup** for testing.
 
+### Session 8
+
+- **Fixed `dir` showing only 1 entry: RCX clobbered by `syscall` in `print_str`** (`programs/cmd/cmd.asm`): `print_str` uses raw `syscall` instruction which saves RIP into RCX. The `dir` loop expected RCX to hold `name_len` (from `strlen`) at `.dir_next` to calculate entry advancement. But all `print_str`/`print_crlf` calls between the calculation and `.dir_next` destroyed RCX, causing the advancement `r8 = rcx + rbx + 4` to use garbage → r14 overshot the buffer → next loop iteration's `cmp rbx, r15` exited immediately. Fix: `push rcx`/`push rbx` after computing name_len/size_len, `pop rbx`/`pop rcx` at `.dir_next`.
+- **Root cause discovery**: The `syscall` instruction on x86-64 unconditionally writes RIP→RCX and RFLAGS→R11. Any wrapper function (like `print_str`) that does raw `syscall` without saving/restoring RCX will corrupt it — even though the value was in a "callee-saved" register from the caller's perspective. This is a silent, non-obvious ABI violation specific to raw `syscall` wrappers.
+- **Cleaned up**: Removed all serial debug output (r15 dump, readdir hex dump) and `debug_star` that were added for this bug hunt.
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:
