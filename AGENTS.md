@@ -100,6 +100,7 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 9. **PML4 page table entry permissions**: User-mode pages MUST have Write bit (0x02) set at EVERY paging level (PML4, PDPT, PD, PT). Setting only User bit (0x04) causes #PF with error 0x7 on writes.
 10. **Timer ISR register order**: Timer ISR pushes registers in rax..r15 order (idx 0..14). context_t expects r15..rax (idx 0..14). Mapping is `ctx[i] = frm[14-i]`.
 11. **User-mode syscall for yield**: Don't call `yield_to_scheduler` from user mode (it pushes ring 0 CS/SS). Use syscall 28 which triggers `yield_from_user_syscall` with proper user frame.
+12. **`syscall` clobbers RCX and R11**: The `syscall` instruction writes RIP→RCX and RFLAGS→R11. NEVER pass 4th syscall arg (which should be in `r10`) in `rcx` — it will be destroyed. Always use `r10` for a4. Similarly, any value in RCX before `syscall` is lost.
 
 ## Files Requiring Careful Edits
 
@@ -111,7 +112,7 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 | kernel/linker.ld | Section layout. MUST NOT change without understanding multiboot2/GRUB constraints. |
 | scripts/build_image.sh | Superfloppy format. Must NOT create MBR. |
 | kernel/idt.c | IDT entry 32 = timer_isr hardcoded. PIC remap must stay. |
-| programs/scout/scout.asm | User-mode PE32+ program. Avoid `lea rdi,[rel X+rax]` pattern. Follow syscall ABI. |
+| programs/scout/scout.asm | User-mode PE32+ program. Avoid `lea rdi,[rel X+rax]` pattern. Follow syscall ABI — all 4th params in r10 (not rcx). No BSS section (must use `times N db 0` in .text). |
 | programs/cmd/cmd.asm | CMD shell. Also has `lea rdi,[rel X+rax]` pattern (10 instances fixed 2026-06-01). |
 
 ### Session 4
@@ -152,6 +153,34 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **Fixed `dir` showing only 1 entry: RCX clobbered by `syscall` in `print_str`** (`programs/cmd/cmd.asm`): `print_str` uses raw `syscall` instruction which saves RIP into RCX. The `dir` loop expected RCX to hold `name_len` (from `strlen`) at `.dir_next` to calculate entry advancement. But all `print_str`/`print_crlf` calls between the calculation and `.dir_next` destroyed RCX, causing the advancement `r8 = rcx + rbx + 4` to use garbage → r14 overshot the buffer → next loop iteration's `cmp rbx, r15` exited immediately. Fix: `push rcx`/`push rbx` after computing name_len/size_len, `pop rbx`/`pop rcx` at `.dir_next`.
 - **Root cause discovery**: The `syscall` instruction on x86-64 unconditionally writes RIP→RCX and RFLAGS→R11. Any wrapper function (like `print_str`) that does raw `syscall` without saving/restoring RCX will corrupt it — even though the value was in a "callee-saved" register from the caller's perspective. This is a silent, non-obvious ABI violation specific to raw `syscall` wrappers.
 - **Cleaned up**: Removed all serial debug output (r15 dump, readdir hex dump) and `debug_star` that were added for this bug hunt.
+
+### Session 9
+
+- **Fixed Scout File Explorer bugs** (`programs/scout/scout.asm`):
+  1. **BSS section → .text**: `make_pe.py` only creates a single `.text` section with `VirtualSize = RawSize`, so BSS variables get no allocated space → #PF on access. Moved all `section .bss` variable declarations to `.text` with `times N db 0` (same pattern as cmd.asm).
+  2. **All `draw_text` syscall ABI fixes**: `syscall` clobbers `rcx` with RIP, but all 5 `gui_draw_text` calls passed the string pointer in `rcx` instead of `r10` (the correct 4th arg register for syscalls). Changed all `mov rcx, [rel X]` (or lea) to `lea r10, [rel X]`.
+  3. **r13 used as both strlen temp AND dir counter**: `mov r13, rax` (strlen result) overwrote the persistent dir entry counter. Also, `inc r13d` appeared twice after `draw_dir_entry` (double increment). Fixed by using `rax` for strlen result and removing the duplicate `inc r13d`.
+  4. **r15 not incremented for dir entries**: Files and dirs overlapped in Y position because `r15d` (visible row counter) was only incremented for file entries. Now incremented for BOTH visible files and visible dirs.
+  5. **`mov r14d, [rsp+8]` truncation**: 32-bit load in `draw_file_entry` would truncate addresses above 4GB. Changed to `mov r14, [rsp+8]` (64-bit).
+  6. **Click handler counting**: Rewrote `handle_event` to use a single visible row counter (`r15d`) matching the draw order, instead of separate file/dir counters that didn't account for interleaved entries.
+
+- **Build**: `make clean && make -j$(nproc)` succeeds with zero NASM warnings. Scout.exe (6840B code, VirtualSize=8KB) is copied to `\SYSTEM\PROGRAMS\SCOUT.EXE` on disk image.
+- **Test**: QEMU boots cleanly — CMD starts, modules load, no crashes.
+
+### Session 10 — XP Start Menu
+
+- **Redesigned Start Menu** (`kernel/gui.c`, `kernel/fb.h`): Single-column dropdown replaced with Windows XP-style two-column layout:
+  - **Header**: Blue gradient bar with white "U" user icon and "Default User" label
+  - **Left column** (170px): Program shortcuts (Scout, CMD, RENDER) with green icon squares
+  - **Right column** (140px): System links (Run..., Help, About BlueOS) on light blue background
+  - **Bottom bar**: "Exit BlueOS..." button with hover highlight
+  - Separator lines between columns and sections
+  - New XP-themed colors in `fb.h` for start menu panes, header, separator, and bottom bar
+- **Removed submenu mechanism**: Programs are directly visible in left column (no more "Programs →" submenu to get to Scout/CMD/RENDER)
+- **Hover/click logic updated**: `handle_start_menu_click()` and `gui_render()` hover detection rewritten for two-column layout with left-column (programs → pe_spawn), right-column (system actions → text), and bottom bar (Exit → cmd_should_exit)
+- **Cleaned up**: Removed `start_submenu_open`, `start_submenu_hovered`, `submenu_items`, `submenu_paths`, `start_num_items`, `start_items[]` — all replaced with new columnar data structures
+- **Build**: Compiles cleanly (one warning fixed: unused `total_items` removed)
+- **Test**: QEMU boots cleanly
 
 ## Commit & Release Rules
 
