@@ -6,6 +6,7 @@
 #include "gui.h"
 #include "font.h"
 #include "pe.h"
+#include "serial.h"
 
 #include "module.h"
 
@@ -1070,6 +1071,11 @@ void gui_puts(int idx, const char* str)
 {
     for (int i = 0; str[i]; i++)
         gui_putchar(idx, str[i]);
+    serial_write("[GUI:");
+    serial_dec(idx);
+    serial_write(" '");
+    serial_write(str);
+    serial_write("']\n");
 }
 
 void gui_clear(int idx)

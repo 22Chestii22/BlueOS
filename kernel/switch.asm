@@ -176,8 +176,13 @@ yield_to_scheduler:
 
     ; Build iret frame in CPU order: ss first (highest addr), rip last (lowest addr among iret)
     push 0x10                    ; ss (context[19])
-    lea rax, [rsp + 136]         ; rax = entry_RSP + 8 = RSP before `call yield_to_scheduler`
-    push rax                     ; rsp (context[18])
+    ; frame[3] (rsp) must point to the frame base for correct ring 0 resume.
+    ; After context_activate.ring0 restores rsp from context[18],
+    ; yield_to_scheduler's cleanup (add rsp,5*8 + pops + ret) processes
+    ; the stack correctly. rsp at this point = entry_RSP - 128,
+    ; frame base = entry_RSP - 160 = rsp - 32.
+    lea rax, [rsp - 32]          ; rax = frame base address
+    push rax                     ; rsp (context[18]) = frame base
     pushfq                       ; rflags (context[17])
     push 0x08                    ; cs (context[16])
     mov rax, [rsp + 152]         ; return address at orig = RSP + (15*8 + 4*8) = RSP + 152
@@ -240,11 +245,10 @@ yield_from_user_syscall:
     ; rdi=40, rbp=48, r8=56, r9=64, r10=72, r11=RFLAGS=80,
     ; r12=88, r13=96, r14=104, r15=112
 
-    ; Get user RSP from GS base (saved by syscall_stub_handler)
-    swapgs
-    push gs:0x10
-    swapgs
-    pop r10                     ; r10 = user RSP
+    ; Get user RSP from cpu_data[2] (saved by syscall_stub_handler's mov gs:0x10, rsp)
+    ; GS.base = &cpu_data here (set by syscall_stub_handler's swapgs), so gs:0x10 = cpu_data[2].
+    ; Do NOT swapgs again — that would set GS.base=KERNEL_GS_BASE=0, reading physical 0x10 instead.
+    mov r10, gs:0x10            ; r10 = user RSP
 
     ; Build frame in yield_handler format:
     ; [RIP, CS, RFLAGS, RSP, SS, r15, r14, ..., rax]

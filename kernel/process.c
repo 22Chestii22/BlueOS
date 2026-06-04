@@ -96,11 +96,8 @@ void process_cleanup(process_t* proc)
 
 uint32_t process_create(const char* name, uint64_t entry, int user)
 {
-    printf("[PROC:CREATE] name=%s entry=0x%x user=%d\n", name, entry, user);
-
     process_t* proc = find_free_slot();
     if (!proc) return 0;
-    printf("[PROC:CREATE] slot found\n");
 
     if (proc->state == PROCESS_TERMINATED)
     {
@@ -116,37 +113,30 @@ uint32_t process_create(const char* name, uint64_t entry, int user)
     proc->context = (context_t*)malloc(sizeof(context_t));
     if (!proc->context) return 0;
     memset(proc->context, 0, sizeof(context_t));
-    printf("[PROC:CREATE] context=0x%x\n", (uint64_t)proc->context);
 
     proc->kernel_stack = (uint64_t*)malloc(STACK_SIZE);
     if (!proc->kernel_stack) { free(proc->context); return 0; }
     proc->kernel_stack_size = STACK_SIZE;
-    printf("[PROC:CREATE] kernel_stack=0x%x\n", (uint64_t)proc->kernel_stack);
 
     uint64_t kstack_top = (uint64_t)proc->kernel_stack + STACK_SIZE;
 
     if (user)
     {
-        printf("[PROC:CREATE] allocating user stack...\n");
-
-        printf("[PROC:CREATE] creating PML4...\n");
         uint64_t pml4 = paging_create_pml4();
         proc->page_table = pml4;
-        printf("[PROC:CREATE] PML4=0x%x\n", pml4);
 
         uint64_t stack_virt = 0x70000000ULL;
-        printf("[PROC:CREATE] mapping stack...\n");
         for (uint64_t off = 0; off < 0x200000; off += 0x1000)
         {
             uint64_t stack_phys = paging_alloc_frame();
             paging_map_user(pml4, stack_virt + off, stack_phys, 0x007);
         }
         proc->user_stack = stack_virt + 0x200000;
-        printf("[PROC:CREATE] stack mapped\n");
 
         proc->context->rip = entry;
         proc->context->cs = 0x23;
         proc->context->rsp = stack_virt + 0x200000;
+        proc->user_rsp = stack_virt + 0x200000;
         proc->context->ss = 0x1B;
         proc->context->rflags = 0x200;
 
@@ -162,8 +152,6 @@ uint32_t process_create(const char* name, uint64_t entry, int user)
 
     add_to_ready_queue(proc);
 
-    printf("[PROC] Created PID %d '%s' at 0x%x (%s)\n",
-           proc->pid, name, entry, user ? "ring 3" : "ring 0");
     return proc->pid;
 }
 

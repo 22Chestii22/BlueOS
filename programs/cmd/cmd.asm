@@ -47,6 +47,10 @@ start:
     call print_str
     call print_crlf
 
+    ; Auto-run dir for testing
+    lea rsi, [rel autoexec_dir]
+    call parse_and_exec
+
 main_loop:
     call print_prompt
     lea rdi, [rel cmd_line]
@@ -434,11 +438,11 @@ parse_and_exec:
     test rax, rax
     jz .done
 
-    lea rdi, [rel not_found_str]
+    lea rdi, [rel not_found_str1]
     call print_str
     lea rdi, [rel cmd_buf]
     call print_str
-    lea rdi, [rel crlf_str]
+    lea rdi, [rel not_found_str2]
     call print_str
     jmp .done
 
@@ -636,33 +640,32 @@ parse_and_exec:
     call print_crlf
     call print_crlf
 
-    lea r14, [rel temp_buf]
     xor r12d, r12d
     xor r13d, r13d
 
+    lea r14, [rel temp_buf]
 .dir_loop:
-    lea rax, [rel temp_buf]
-    cmp r14, rax
-    jb .dir_done_loop
-    mov al, [r14]
-    test al, al
-    jz .dir_done_loop
     lea rax, [rel temp_buf]
     mov rbx, r14
     sub rbx, rax
     cmp rbx, r15
     jae .dir_done_loop
+    mov al, [r14]
+    test al, al
+    jz .dir_done_loop
 
+    ; Get name length
     push r14
-    add r14, 2
+    lea rdi, [r14 + 2]
     call strlen
-    mov rcx, rax
+    mov rcx, rax          ; rcx = name_len
     pop r14
 
+    ; Get size length
     push r14
-    lea r14, [r14 + 2 + rcx + 1]
+    lea rdi, [r14 + 2 + rcx + 1]
     call strlen
-    mov rbx, rax
+    mov rbx, rax          ; rbx = size_len
     pop r14
 
     push r14
@@ -682,15 +685,11 @@ parse_and_exec:
     add rdi, rax
     mov byte [rdi], '\'
     mov byte [rdi + 1], 0
-
     lea rdi, [rel dir_line_buf]
     call print_str
     call print_crlf
     pop r14
-    add r14, rcx
-    add r14, rbx
-    add r14, 4
-    jmp .dir_loop
+    jmp .dir_next
 
 .dir_file:
     inc r12d
@@ -703,9 +702,12 @@ parse_and_exec:
     call print_str
     call print_crlf
     pop r14
-    add r14, rcx
-    add r14, rbx
-    add r14, 4
+
+.dir_next:
+    mov r8, rcx
+    add r8, rbx
+    add r8, 4
+    add r14, r8
     jmp .dir_loop
 
 .dir_done_loop:
@@ -1077,7 +1079,9 @@ crlf_str:     db 13, 10, 0
 space_str:    db ' ', 0
 bs_str:       db 8, ' ', 8, 0
 
-not_found_str: db "'", 0
+not_found_str1: db "'", 0
+not_found_str2: db "' is not recognized", 13, 10, 0
+autoexec_dir:  db "dir", 0
 cd_bad_path:   db "The system cannot find the path specified.", 13, 10, 0
 dir_header1:   db " Directory of ", 0
 dir_empty_str: db " File Not Found", 0

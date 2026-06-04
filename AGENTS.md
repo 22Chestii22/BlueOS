@@ -135,6 +135,18 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
   1. **context_activate.ring0 missed GS.base restore** (`kernel/switch.asm`): When a process yielded from inside a syscall (e.g., GETCHAR via `keyb_getchar` → `yield_to_scheduler`), the saved context had CS=0x08 (ring 0). The timer IRQ later resumed this process via `context_activate.ring0`, which did NOT set GS.base. GS.base was still 0 from the prior `.ring3` activation (set for a user process). The syscall exit path then executed `mov rsp, gs:0x10`, reading from physical address 0x10 → #PF → #DF. Fix: `.ring0` now sets `GS.base=&cpu_data` and `MSR_KERNEL_GS_BASE=0` via WRMSR, matching the swapgs-at-syscall-entry state.
   2. **cpu_data[2] user RSP corruption** (`kernel/process.c`, `modules/timer/timer.c`): `cpu_data[2]` (written by `mov gs:0x10, rsp` at syscall entry) is a single global slot. When another process issued a syscall between the yield and resume, it overwrote `cpu_data[2]` with its own user RSP. The resumed process then loaded the wrong stack pointer on syscall exit. Fix: added `user_rsp` field to `process_t`, saved in `yield_handler` and `timer_handler_and_schedule`, restored into `cpu_data[2]` before `context_activate`.
 
+### Session 7
+
+- **Fixed `strlen` register bug in cmd.asm `dir` command** (`programs/cmd/cmd.asm`): The `dir` parsing loop called `strlen` with string pointer in `r14` but `strlen` reads from `rdi`. Since `rdi` at that point held `cmd_win` (a small integer from the GUI window handle, e.g. 0), strlen read from virtual address 0 instead of the directory entry name, returning wrong length (0). This caused the loop to advance by incorrect byte counts, skipping entries and only processing 1 entry before hitting a null byte. All subdirectory listings (`dir \SYSTEM`, `dir` in current dir) showed count=1.
+  - Fix: `lea rdi, [r14 + 2]` before calling `strlen` instead of `add r14, 2`.
+- **Restored dir entry display**: The committed code was replaced with a counting-only loop (no visible output). Restored the full display showing each entry (`DIRNAME\` for dirs, filenames for files) plus file/dir counts.
+- **yield_to_scheduler frame base fix** (`kernel/switch.asm`): Fixed RSP computation for ring 0 yield frame to use correct frame base address.
+- **yield_from_user_syscall** (`kernel/switch.asm`): Reads user RSP from `gs:0x10` directly without swapgs (fixes potential GS.base corruption).
+- **process.c**: Removed debug printf spam from `process_create`. Added `proc->user_rsp` initialization for user-mode processes.
+- **syscall.c**: Added serial debug output for readdir syscall.
+- **gui.c**: Added serial debug output for `gui_puts`.
+- **Added auto-exec `dir` on CMD startup** for testing.
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:

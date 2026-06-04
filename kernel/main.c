@@ -148,6 +148,8 @@ void kernel_main(void* mbd, uint32_t magic)
     scheduler_init();
     timer_start();
     timer_scheduler_enable();
+
+
     pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\CMD.EXE");
     pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
