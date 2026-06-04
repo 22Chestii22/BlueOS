@@ -76,4 +76,16 @@ void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip);
 
 #define COL_XP_DESKTOP       FB_RGB(0x3A,0x6E,0xA5)
 
+/* XP Start Menu colors */
+#define COL_XP_SM_HEADER     FB_RGB(0x00,0x5A,0xE0)
+#define COL_XP_SM_HEADER2    FB_RGB(0x00,0x4A,0xC0)
+#define COL_XP_SM_LEFT_BG    FB_RGB(0xFF,0xFF,0xFF)
+#define COL_XP_SM_RIGHT_BG   FB_RGB(0xD6,0xE4,0xF0)
+#define COL_XP_SM_SEPARATOR  FB_RGB(0xC0,0xC0,0xC0)
+#define COL_XP_SM_BOTTOM_BG  FB_RGB(0xE2,0xE6,0xEB)
+#define COL_XP_SM_USER_TEXT  COL_WHITE
+#define COL_XP_SM_LOGOFF_BG  FB_RGB(0xE2,0xE6,0xEB)
+#define COL_XP_SM_LOGOFF_FG  COL_BLACK
+#define COL_XP_SM_SHUTDOWN   FB_RGB(0xCC,0x33,0x33)
+
 #endif

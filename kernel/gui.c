@@ -28,33 +28,37 @@ static int cascade_y = 40;
 static int start_menu_open = 0;
 static int start_menu_hovered = -1;
 static int start_button_down = 0;
-static int start_submenu_open = 0;
-static int start_submenu_hovered = -1;
 
-static const char* start_items[GUI_MAX_START_ITEMS] = {
-    "Programs",
-    "Run...",
-    "Help",
-    "About BlueOS",
-    "Exit",
-    0, 0, 0
-};
-static int start_num_items = 5;
-
-static const char* submenu_items[GUI_MAX_START_ITEMS] = {
+static const char* start_left_items[] = {
     "Scout",
     "CMD",
     "RENDER",
-    0, 0, 0, 0, 0
+    "All Programs",
+    NULL
 };
-static int submenu_num_items = 3;
-
-static const char* submenu_paths[GUI_MAX_START_ITEMS] = {
+static const char* start_left_paths[] = {
     "\\SYSTEM\\PROGRAMS\\SCOUT.EXE",
     "\\SYSTEM\\PROGRAMS\\CMD.EXE",
     "\\SYSTEM\\PROGRAMS\\RENDER.EXE",
-    0, 0, 0, 0, 0
+    NULL,
 };
+static int start_left_count = 4;
+
+static const char* start_right_items[] = {
+    "My Documents",
+    "My Computer",
+    "Help & Support",
+    "Run...",
+    NULL
+};
+static int start_right_count = 4;
+
+#define XP_SM_LEFT_W     170
+#define XP_SM_RIGHT_W    140
+#define XP_SM_TOTAL_W    (XP_SM_LEFT_W + XP_SM_RIGHT_W)
+#define XP_SM_HEADER_H   50
+#define XP_SM_BOTTOM_H   30
+#define XP_SM_ITEM_H     (FONT_HEIGHT + 6)
 
 typedef struct {
     const char* label;
@@ -208,73 +212,159 @@ static void draw_desktop_icons(void)
     }
 }
 
-static void draw_start_submenu(void)
-{
-    if (!start_submenu_open) return;
-
-    int tby = fb_info.height - GUI_TASK_HEIGHT;
-    int mh = start_num_items * (FONT_HEIGHT + 4) + 4;
-    int my = tby - mh;
-    int item_h = FONT_HEIGHT + 4;
-    int smh = submenu_num_items * item_h + 4;
-    int smx = 2 + GUI_START_DROPDOWN_W;
-    int smy = my + 2;
-
-    fb_fillrect(smx, smy, GUI_START_DROPDOWN_W, smh, COL_XP_BTN_FACE);
-    draw_win3d_rect(smx, smy, GUI_START_DROPDOWN_W, smh, 1);
-
-    for (int i = 0; i < submenu_num_items; i++)
-    {
-        if (!submenu_items[i]) continue;
-        int iy = smy + 2 + i * item_h;
-        uint32_t bg = COL_WHITE;
-        uint32_t fg = COL_BLACK;
-
-        if (start_submenu_hovered == i)
-        {
-            bg = COL_XP_HIGHLIGHT;
-            fg = COL_WHITE;
-        }
-
-        fb_fillrect(smx + 2, iy, GUI_START_DROPDOWN_W - 4, item_h, bg);
-        fb_drawstring(smx + 6, iy + 2, submenu_items[i], fg, bg);
-    }
-}
-
 static void draw_start_menu(void)
 {
     if (!start_menu_open) return;
 
     int tby = fb_info.height - GUI_TASK_HEIGHT;
-    int item_h = FONT_HEIGHT + 4;
-    int mh = start_num_items * item_h + 4;
     int mx = 2;
-    int my = tby - mh;
+    int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
+    int my = tby - XP_SM_HEADER_H - max_items * XP_SM_ITEM_H - XP_SM_BOTTOM_H;
 
-    fb_fillrect(mx, my, GUI_START_DROPDOWN_W, mh, COL_XP_BTN_FACE);
-    draw_win3d_rect(mx, my, GUI_START_DROPDOWN_W, mh, 1);
+    int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
 
-    for (int i = 0; i < start_num_items; i++)
+    fb_fillrect(mx, my, XP_SM_TOTAL_W, total_h, COL_XP_SM_LEFT_BG);
+    draw_win3d_rect(mx, my, XP_SM_TOTAL_W, total_h, 1);
+
+    /* Header — XP-style blue gradient with user info */
+    int hx = mx + 2, hy = my + 2;
+    int hw = XP_SM_TOTAL_W - 4, hh = XP_SM_HEADER_H - 2;
+    for (int row = 0; row < hh; row++)
     {
-        if (!start_items[i]) continue;
-        int iy = my + 2 + i * item_h;
-        uint32_t bg = COL_WHITE;
+        uint8_t r = 0x00 + (uint32_t)(0x5A - 0x00) * row / hh;
+        uint8_t g = 0x5A + (uint32_t)(0x78 - 0x5A) * row / hh;
+        uint8_t b = 0xE0 + (uint32_t)(0xFF - 0xE0) * row / hh;
+        fb_draw_hline(hy + row, hx, hx + hw - 1, FB_RGB(r, g, b));
+    }
+    /* User icon — bigger, more detailed */
+    int icon_x = hx + 8;
+    int icon_y = hy + (hh - 32) / 2;
+    fb_fillrect(icon_x, icon_y, 32, 32, COL_WHITE);
+    draw_3d_rect(icon_x, icon_y, 32, 32, 1);
+    fb_drawstring(icon_x + 10, icon_y + 8, "U", FB_RGB(0,0x5A,0xE0), COL_WHITE);
+    /* User name + subtitle */
+    fb_drawstring(icon_x + 40, hy + 8, "Default User", COL_WHITE, FB_RGB(0,0x5A,0xE0));
+    fb_drawstring(icon_x + 40, hy + 8 + FONT_HEIGHT + 2, "Administrator", FB_RGB(0xC0,0xE0,0xFF), FB_RGB(0,0x5A,0xE0));
+
+    /* Left column — programs */
+    int left_x = mx + 2;
+    int left_y = my + XP_SM_HEADER_H;
+    int left_w = XP_SM_LEFT_W;
+
+    for (int i = 0; i < start_left_count; i++)
+    {
+        int iy = left_y + i * XP_SM_ITEM_H;
+        uint32_t bg = COL_XP_SM_LEFT_BG;
         uint32_t fg = COL_BLACK;
 
-        if (start_menu_hovered == i)
+        if (start_menu_hovered >= 0 && start_menu_hovered < start_left_count &&
+            start_menu_hovered == i)
         {
             bg = COL_XP_HIGHLIGHT;
             fg = COL_WHITE;
         }
 
-        fb_fillrect(mx + 2, iy, GUI_START_DROPDOWN_W - 4, item_h, bg);
-        fb_drawstring(mx + 6, iy + 2, start_items[i], fg, bg);
+        fb_fillrect(left_x, iy, left_w, XP_SM_ITEM_H, bg);
 
-        if (i == 0)
-            fb_drawstring(mx + GUI_START_DROPDOWN_W - 14, iy + 2, ">", fg, bg);
+        if (i < start_left_count - 1)
+        {
+            /* Regular program item with green arrow */
+            fb_fillrect(left_x + 4, iy + 3, 14, 14, COL_XP_START_GREEN);
+            draw_3d_rect(left_x + 4, iy + 3, 14, 14, 0);
+            fb_drawstring(left_x + 24, iy + 2, start_left_items[i], fg, bg);
+        }
+        else
+        {
+            /* "All Programs" — text + right arrow, no icon */
+            fb_drawstring(left_x + 24, iy + 2, "All Programs", fg, bg);
+            fb_drawstring(left_x + left_w - FONT_WIDTH - 6, iy + 2, "\x10", fg, bg);
+        }
     }
 
-    draw_start_submenu();
+    /* Etched separators in left column */
+    fb_draw_hline(left_y + XP_SM_ITEM_H - 1, left_x + 6, left_x + left_w - 6, COL_XP_SM_SEPARATOR);
+    fb_draw_hline(left_y + (start_left_count - 1) * XP_SM_ITEM_H - 1, left_x + 6, left_x + left_w - 6, COL_XP_SM_SEPARATOR);
+
+    /* Separator between columns */
+    int sep_x = left_x + left_w;
+    fb_draw_vline(sep_x, left_y, left_y + max_items * XP_SM_ITEM_H - 1, COL_XP_SM_SEPARATOR);
+
+    /* Right column — system items with section separators */
+    int right_x = sep_x + 2;
+    int right_w = XP_SM_RIGHT_W - 4;
+
+    for (int i = 0; i < start_right_count; i++)
+    {
+        int iy = left_y + i * XP_SM_ITEM_H;
+
+        /* Draw section separator between system items (index 1) and help/run (index 2) */
+        if (i == 2)
+        {
+            fb_draw_hline(iy - 1, right_x + 4, right_x + right_w - 4, COL_XP_SM_SEPARATOR);
+        }
+
+        uint32_t bg = COL_XP_SM_RIGHT_BG;
+        uint32_t fg = COL_BLACK;
+
+        if (start_menu_hovered >= start_left_count &&
+            start_menu_hovered - start_left_count == i)
+        {
+            bg = COL_XP_HIGHLIGHT;
+            fg = COL_WHITE;
+        }
+
+        fb_fillrect(right_x, iy, right_w, XP_SM_ITEM_H, bg);
+        fb_drawstring(right_x + 6, iy + 2, start_right_items[i], fg, bg);
+    }
+
+    /* Separator between items and bottom */
+    int sep2_y = left_y + max_items * XP_SM_ITEM_H;
+    fb_draw_hline(sep2_y, mx + 2, mx + XP_SM_TOTAL_W - 3, COL_XP_SM_SEPARATOR);
+
+    /* Bottom bar with two XP-style buttons */
+    int bottom_y = sep2_y + 1;
+    int bottom_h = XP_SM_BOTTOM_H - 1;
+    fb_fillrect(mx + 2, bottom_y, XP_SM_TOTAL_W - 4, bottom_h, COL_XP_SM_BOTTOM_BG);
+
+    int logoff_idx = start_left_count + start_right_count;
+    int shutdown_idx = logoff_idx + 1;
+    int bottom_w = XP_SM_TOTAL_W - 4;
+    int half = bottom_w / 2;
+    int btn_h = bottom_h - 4;
+    int mmx_bottom = mouse_get_x_wrapper();
+    int half_x = mx + 2 + half;
+
+    /* Log Off button */
+    {
+        int bx = mx + 4, by = bottom_y + 2, bw = half - 4, bh = btn_h;
+        draw_win3d_rect(bx, by, bw, bh, 1);
+        uint32_t bg = COL_XP_SM_BOTTOM_BG, fg = COL_BLACK;
+        if (start_menu_hovered == logoff_idx && mmx_bottom < half_x)
+        {
+            bg = COL_XP_HIGHLIGHT;
+            fg = COL_WHITE;
+            fb_fillrect(bx + 2, by + 2, bw - 4, bh - 4, bg);
+        }
+        fb_drawstring(bx + 10, by + 2, "Log Off", fg, bg);
+    }
+
+    /* Separator between buttons */
+    fb_draw_vline(half_x - 2, bottom_y + 2, bottom_y + btn_h - 3, COL_XP_SM_SEPARATOR);
+
+    /* Shut Down button */
+    {
+        int bx = half_x + 2, by = bottom_y + 2, bw = bottom_w - half - 6, bh = btn_h;
+        draw_win3d_rect(bx, by, bw, bh, 1);
+        uint32_t bg = COL_XP_SM_BOTTOM_BG, fg = COL_BLACK;
+        if (start_menu_hovered == shutdown_idx ||
+            (start_menu_hovered == logoff_idx && mmx_bottom >= half_x))
+        {
+            bg = COL_XP_SM_SHUTDOWN;
+            fg = COL_WHITE;
+            fb_fillrect(bx + 2, by + 2, bw - 4, bh - 4, bg);
+        }
+        fb_drawstring(bx + 6, by + 2, "Shut Down", fg, bg);
+    }
 }
 
 static void draw_window_title_bar(gui_window_t* w, int active)
@@ -513,96 +603,83 @@ static void draw_mouse_cursor(void)
     }
 }
 
-static void handle_submenu_click(int mx, int my)
-{
-    int tby = fb_info.height - GUI_TASK_HEIGHT;
-    int item_h = FONT_HEIGHT + 4;
-    int mh = start_num_items * item_h + 4;
-    int my2 = tby - mh;
-    int smh = submenu_num_items * item_h + 4;
-    int smx = 2 + GUI_START_DROPDOWN_W;
-    int smy = my2 + 2;
-
-    if (mx < smx || mx >= smx + GUI_START_DROPDOWN_W ||
-        my < smy || my >= smy + smh)
-        return;
-
-    int idx = (my - smy - 2) / item_h;
-    if (idx < 0 || idx >= submenu_num_items) return;
-    if (!submenu_items[idx]) return;
-
-    start_menu_open = 0;
-    start_submenu_open = 0;
-
-    if (submenu_paths[idx])
-        pe_spawn(submenu_paths[idx]);
-}
-
 static void handle_start_menu_click(int mx, int my)
 {
     if (!start_menu_open) return;
 
-    if (start_submenu_open)
-    {
-        int tby = fb_info.height - GUI_TASK_HEIGHT;
-        int item_h = FONT_HEIGHT + 4;
-        int mh = start_num_items * item_h + 4;
-        int my2 = tby - mh;
-        int smh = submenu_num_items * item_h + 4;
-        int smx = 2 + GUI_START_DROPDOWN_W;
-        int smy = my2 + 2;
-
-        if (mx >= smx && mx < smx + GUI_START_DROPDOWN_W &&
-            my >= smy && my < smy + smh)
-        {
-            handle_submenu_click(mx, my);
-            return;
-        }
-    }
-
     int tby = fb_info.height - GUI_TASK_HEIGHT;
-    int item_h = FONT_HEIGHT + 4;
-    int mh = start_num_items * item_h + 4;
-    int smx = 2;
-    int smy = tby - mh;
 
-    if (mx < smx || mx >= smx + GUI_START_DROPDOWN_W ||
-        my < smy || my >= smy + mh)
+    int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
+    int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
+    int smx = 2;
+    int smy = tby - total_h;
+
+    if (mx < smx || mx >= smx + XP_SM_TOTAL_W ||
+        my < smy || my >= smy + total_h)
     {
         start_menu_open = 0;
-        start_submenu_open = 0;
         return;
     }
 
-    int idx = (my - smy - 2) / item_h;
-    if (idx < 0 || idx >= start_num_items) return;
-    if (!start_items[idx]) return;
+    if (my < smy + XP_SM_HEADER_H)
+        return;
 
-    if (strcmp(start_items[idx], "Programs") == 0)
+    int bottom_y = smy + XP_SM_HEADER_H + max_items * XP_SM_ITEM_H;
+    if (my >= bottom_y)
     {
-        start_submenu_open = !start_submenu_open;
+        int half_x = smx + XP_SM_TOTAL_W / 2;
+        if (mx < half_x)
+        {
+            if (gui_terminal_win >= 0)
+                gui_puts(gui_terminal_win, "\nLog Off...\n");
+        }
+        else
+        {
+            start_menu_open = 0;
+            cmd_should_exit = 1;
+        }
         return;
     }
 
-    start_submenu_open = 0;
-    start_menu_open = 0;
+    /* Item area - determine column by X */
+    int sep_x = smx + XP_SM_LEFT_W;
+    int item_area_y = smy + XP_SM_HEADER_H;
+    int idx = (my - item_area_y) / XP_SM_ITEM_H;
+    if (idx < 0) return;
 
-    if (strcmp(start_items[idx], "Exit") == 0)
-        cmd_should_exit = 1;
-    else if (strcmp(start_items[idx], "About BlueOS") == 0)
+    if (mx < sep_x)
     {
-        if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nBlueOS x86_64 v1.0 - Win95-style GUI\n\n");
+        /* Left column */
+        if (idx >= start_left_count) return;
+        start_menu_open = 0;
+        if (start_left_paths[idx])
+            pe_spawn(start_left_paths[idx]);
     }
-    else if (strcmp(start_items[idx], "Run...") == 0)
+    else
     {
-        if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nType a program name:\n");
-    }
-    else if (strcmp(start_items[idx], "Help") == 0)
-    {
-        if (gui_terminal_win >= 0)
-            gui_puts(gui_terminal_win, "\nBlueOS Help\n  Start menu for programs\n  Desktop icons\n  Window minimize/close\n\n");
+        /* Right column */
+        if (idx >= start_right_count) return;
+        start_menu_open = 0;
+        if (strcmp(start_right_items[idx], "Run...") == 0)
+        {
+            if (gui_terminal_win >= 0)
+                gui_puts(gui_terminal_win, "\nType a program name:\n");
+        }
+        else if (strcmp(start_right_items[idx], "Help & Support") == 0)
+        {
+            if (gui_terminal_win >= 0)
+                gui_puts(gui_terminal_win, "\nBlueOS Help\n  Start menu for programs\n  Desktop icons\n  Window minimize/close\n\n");
+        }
+        else if (strcmp(start_right_items[idx], "My Computer") == 0)
+        {
+            if (gui_terminal_win >= 0)
+                gui_puts(gui_terminal_win, "\nMy Computer: BlueOS x86_64\n\n");
+        }
+        else if (strcmp(start_right_items[idx], "My Documents") == 0)
+        {
+            if (gui_terminal_win >= 0)
+                gui_puts(gui_terminal_win, "\nMy Documents folder\n\n");
+        }
     }
 }
 
@@ -672,15 +749,9 @@ static int handle_taskbar_click(int mx, int my)
     if (mx >= start_x && mx < start_x + start_w)
     {
         if (start_menu_open)
-        {
-            start_submenu_open = 0;
             start_menu_open = 0;
-        }
         else
-        {
-            start_submenu_open = 0;
             start_menu_open = 1;
-        }
         return 1;
     }
 
@@ -733,25 +804,14 @@ static void handle_click(void)
     if (start_menu_open)
     {
         int tby = fb_info.height - GUI_TASK_HEIGHT;
-        int item_h = FONT_HEIGHT + 4;
-        int mh = start_num_items * item_h + 4;
+        int total_h = XP_SM_HEADER_H + start_left_count * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
         int smx = 2;
-        int smy = tby - mh;
+        int smy = tby - total_h;
 
-        int in_main_menu = (mx >= smx && mx < smx + GUI_START_DROPDOWN_W &&
-                            my >= smy && my < smy + mh);
+        int in_menu = (mx >= smx && mx < smx + XP_SM_TOTAL_W &&
+                       my >= smy && my < smy + total_h);
 
-        int in_submenu = 0;
-        if (start_submenu_open)
-        {
-            int smh2 = submenu_num_items * item_h + 4;
-            int smx2 = 2 + GUI_START_DROPDOWN_W;
-            int smy2 = smy + 2;
-            in_submenu = (mx >= smx2 && mx < smx2 + GUI_START_DROPDOWN_W &&
-                          my >= smy2 && my < smy2 + smh2);
-        }
-
-        if (in_main_menu || in_submenu)
+        if (in_menu)
         {
             handle_start_menu_click(mx, my);
             return;
@@ -761,12 +821,10 @@ static void handle_click(void)
         int start_w = GUI_START_BUTTON_W;
         if (my >= tby && mx >= start_x && mx < start_x + start_w)
         {
-            start_submenu_open = 0;
             start_menu_open = 0;
             return;
         }
 
-        start_submenu_open = 0;
         start_menu_open = 0;
     }
 
@@ -994,8 +1052,6 @@ void gui_init(void)
     start_menu_open = 0;
     start_menu_hovered = -1;
     start_button_down = 0;
-    start_submenu_open = 0;
-    start_submenu_hovered = -1;
 }
 
 int gui_create(const char* title, int w, int h)
@@ -1253,44 +1309,45 @@ void gui_render(void)
     if (start_menu_open)
     {
         int tby = fb_info.height - GUI_TASK_HEIGHT;
-        int item_h = FONT_HEIGHT + 4;
         int mmx = mouse_get_x_wrapper();
         int mmy = mouse_get_y_wrapper();
         start_menu_hovered = -1;
-        start_submenu_hovered = -1;
-        int mh = start_num_items * item_h + 4;
-        int smy = tby - mh;
-        if (mmx >= 2 && mmx < 2 + GUI_START_DROPDOWN_W &&
-            mmy >= smy && mmy < smy + mh)
-        {
-            int idx = (mmy - smy - 2) / item_h;
-            if (idx >= 0 && idx < start_num_items)
-            {
-                start_menu_hovered = idx;
-                if (idx == 0)
-                    start_submenu_open = 1;
-                else
-                    start_submenu_open = 0;
-            }
-        }
-        else
-        {
-            start_submenu_open = 0;
-        }
 
-        if (start_submenu_open)
+        int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
+        int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
+        int smy = tby - total_h;
+
+        if (mmx >= 2 && mmx < 2 + XP_SM_TOTAL_W &&
+            mmy >= smy && mmy < smy + total_h)
         {
-            int smx = 2 + GUI_START_DROPDOWN_W;
-            int smy2 = smy + 2;
-            int smh = submenu_num_items * item_h + 4;
-            if (mmx >= smx && mmx < smx + GUI_START_DROPDOWN_W &&
-                mmy >= smy2 && mmy < smy2 + smh)
+            if (mmy < smy + XP_SM_HEADER_H)
+                goto sm_hover_done;
+
+            int sep_x = 2 + XP_SM_LEFT_W;
+            int item_area_y = smy + XP_SM_HEADER_H;
+            int bottom_y = smy + XP_SM_HEADER_H + max_items * XP_SM_ITEM_H;
+            int idx = (mmy - item_area_y) / XP_SM_ITEM_H;
+
+            if (mmy >= bottom_y)
             {
-                int idx = (mmy - smy2 - 2) / item_h;
-                if (idx >= 0 && idx < submenu_num_items)
-                    start_submenu_hovered = idx;
+                int half_x = 2 + XP_SM_TOTAL_W / 2;
+                if (mmx < half_x)
+                    start_menu_hovered = start_left_count + start_right_count;
+                else
+                    start_menu_hovered = start_left_count + start_right_count + 1;
+            }
+            else if (mmx < sep_x)
+            {
+                if (idx >= 0 && idx < start_left_count)
+                    start_menu_hovered = idx;
+            }
+            else
+            {
+                if (idx >= 0 && idx < start_right_count)
+                    start_menu_hovered = start_left_count + idx;
             }
         }
+    sm_hover_done: ;
     }
 
     draw_menu_bar();
