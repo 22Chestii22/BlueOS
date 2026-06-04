@@ -8,18 +8,29 @@
 #define GUI_EVENT_QUEUE_SIZE 16
 
 #define GUI_MENU_HEIGHT 18
-#define GUI_TITLE_HEIGHT 18
-#define GUI_TASK_HEIGHT 22
+#define GUI_TITLE_HEIGHT 22
+#define GUI_TASK_HEIGHT 36
 
-#define GUI_DESKTOP_COL  COL_XP_DESKTOP
+#define GUI_DESKTOP_COL  COL_W7_DESKTOP
 
 #define GUI_MAX_MENUS 4
 #define GUI_MAX_MENU_ITEMS 8
 #define GUI_MENU_DROPDOWN_W 120
 
-#define GUI_START_BUTTON_W 60
-#define GUI_START_DROPDOWN_W 150
-#define GUI_MAX_START_ITEMS 8
+#define GUI_START_BUTTON_W 50
+#define GUI_START_DROPDOWN_W 200
+#define GUI_MAX_START_ITEMS 16
+
+#define W7_SM_LEFT_W      180
+#define W7_SM_RIGHT_W     150
+#define W7_SM_TOTAL_W     (W7_SM_LEFT_W + W7_SM_RIGHT_W)
+#define W7_SM_HEADER_H    48
+#define W7_SM_BOTTOM_H    32
+#define W7_SM_SEARCH_H    28
+#define W7_SM_ITEM_H      (FONT_HEIGHT + 6)
+
+#define W7_ORB_SIZE       28
+#define W7_TRAY_W         140
 
 typedef struct {
     int type;

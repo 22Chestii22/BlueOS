@@ -234,6 +234,147 @@ void fb_clear(uint32_t color)
     fb_fillrect(0, 0, fb_info.width, fb_info.height, color);
 }
 
+uint32_t fb_blend(uint32_t fg, uint32_t bg, uint8_t alpha)
+{
+    uint32_t r = ((FB_GET_R(fg) * alpha) + (FB_GET_R(bg) * (255 - alpha))) / 255;
+    uint32_t g = ((FB_GET_G(fg) * alpha) + (FB_GET_G(bg) * (255 - alpha))) / 255;
+    uint32_t b = ((FB_GET_B(fg) * alpha) + (FB_GET_B(bg) * (255 - alpha))) / 255;
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
+    return FB_RGB(r, g, b);
+}
+
+void fb_fillrect_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha)
+{
+    if (x >= fb_info.width || y >= fb_info.height || w == 0 || h == 0) return;
+    if (x + w > fb_info.width) w = fb_info.width - x;
+    if (y + h > fb_info.height) h = fb_info.height - y;
+
+    if (alpha >= 255)
+    {
+        fb_fillrect(x, y, w, h, color);
+        return;
+    }
+    if (alpha == 0) return;
+
+    if (backbuffer)
+    {
+        uint32_t stride = fb_info.pitch / 4;
+        for (uint32_t row = 0; row < h; row++)
+        {
+            uint32_t yy = y + row;
+            uint32_t* line = &backbuffer[yy * stride + x];
+            for (uint32_t col = 0; col < w; col++)
+                line[col] = fb_blend(color, line[col], alpha);
+        }
+    }
+    else
+    {
+        for (uint32_t row = 0; row < h; row++)
+        {
+            uint32_t yy = y + row;
+            for (uint32_t col = 0; col < w; col++)
+            {
+                uint32_t bg = 0;
+                if (fb_info.bpp == 32)
+                    bg = ((uint32_t*)((uint8_t*)mapped_fb + yy * fb_info.pitch))[x + col];
+                putpixel_raw(x + col, yy, fb_blend(color, bg, alpha));
+            }
+        }
+    }
+}
+
+void fb_draw_glass_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha)
+{
+    if (w < 2 || h < 2) return;
+    /* Glass effect: translucent fill with a glossy highlight at the top */
+    fb_fillrect_alpha(x, y, w, h, color, alpha);
+
+    /* Glossy reflection line near top */
+    uint32_t highlight = fb_blend(COL_WHITE, color, 80);
+    fb_draw_hline(y + 1, x + 2, x + w - 3, highlight);
+
+    /* Subtle bottom shadow */
+    uint32_t shadow = fb_blend(COL_BLACK, color, 40);
+    fb_draw_hline(y + h - 1, x + 1, x + w - 2, shadow);
+}
+
+void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow_color)
+{
+    int glow_alpha = 60;
+    int cx = x, cy = y;
+
+    for (int i = 0; str[i]; i++)
+    {
+        if (str[i] == '\n')
+        {
+            cx = x;
+            cy += FONT_HEIGHT;
+            continue;
+        }
+        int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
+        if (ci < 0 || ci >= FONT_NUM_CHARS) continue;
+
+        for (int row = 0; row < FONT_HEIGHT; row++)
+        {
+            unsigned char bits = font_data[ci][row];
+            int py = cy + row;
+            if (py < 0 || (uint32_t)py >= fb_info.height) continue;
+            for (int col = 0; col < FONT_WIDTH; col++)
+            {
+                int px = cx + col;
+                if (px < 0 || (uint32_t)px >= fb_info.width) continue;
+                if (bits & (1 << (7 - col)))
+                {
+                    /* Draw glow box around each text pixel */
+                    int gx_start = px - 1;
+                    if (gx_start < 0) gx_start = 0;
+                    int gy_start = py - 1;
+                    if (gy_start < 0) gy_start = 0;
+                    int gw = 3;
+                    if (gx_start + gw > (int)fb_info.width) gw = fb_info.width - gx_start;
+                    int gh = 3;
+                    if (gy_start + gh > (int)fb_info.height) gh = fb_info.height - gy_start;
+                    fb_fillrect_alpha((uint32_t)gx_start, (uint32_t)gy_start,
+                                      (uint32_t)gw, (uint32_t)gh,
+                                      glow_color, glow_alpha);
+                }
+            }
+        }
+        cx += FONT_WIDTH;
+    }
+
+    /* Draw actual text on top using pixel-level rendering (no background) */
+    cx = x; cy = y;
+    for (int i = 0; str[i]; i++)
+    {
+        if (str[i] == '\n')
+        {
+            cx = x;
+            cy += FONT_HEIGHT;
+            continue;
+        }
+        int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
+        if (ci < 0 || ci >= FONT_NUM_CHARS) continue;
+
+        for (int row = 0; row < FONT_HEIGHT; row++)
+        {
+            unsigned char bits = font_data[ci][row];
+            int py = cy + row;
+            if (py < 0 || (uint32_t)py >= fb_info.height) continue;
+            for (int col = 0; col < FONT_WIDTH; col++)
+            {
+                int px = cx + col;
+                if (px < 0 || (uint32_t)px >= fb_info.width) continue;
+                if (bits & (1 << (7 - col)))
+                    fb_putpixel((uint32_t)px, (uint32_t)py, fg);
+            }
+        }
+        cx += FONT_WIDTH;
+    }
+}
+
 static void fb_putchar_raw(int x, int y, char c, uint32_t fg, uint32_t bg)
 {
     int ci = (unsigned char)c - FONT_FIRST_CHAR;

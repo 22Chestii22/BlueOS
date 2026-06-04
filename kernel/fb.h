@@ -88,4 +88,43 @@ void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip);
 #define COL_XP_SM_LOGOFF_FG  COL_BLACK
 #define COL_XP_SM_SHUTDOWN   FB_RGB(0xCC,0x33,0x33)
 
+/* Windows 7 Aero theme colors */
+#define COL_W7_AERO_GLASS     FB_RGB(0xF0, 0xF0, 0xF0)
+#define COL_W7_AERO_BORDER    FB_RGB(0xB0, 0xB0, 0xB0)
+#define COL_W7_AERO_GLOW      FB_RGB(0x99, 0xCC, 0xFF)
+#define COL_W7_AERO_GLOW_ACT  FB_RGB(0x33, 0x99, 0xFF)
+#define COL_W7_AERO_TITLE     FB_RGB(0x00, 0x50, 0xCC)
+#define COL_W7_AERO_TITLE_INACT FB_RGB(0x80, 0x80, 0x80)
+#define COL_W7_AERO_CLOSE     FB_RGB(0xE0, 0x30, 0x30)
+#define COL_W7_AERO_CLOSE_HOV FB_RGB(0xFF, 0x40, 0x40)
+#define COL_W7_AERO_MIN       FB_RGB(0x20, 0x80, 0xE0)
+#define COL_W7_AERO_MAX       FB_RGB(0x20, 0x80, 0xE0)
+
+#define COL_W7_TASKBAR_GLASS  FB_RGB(0x18, 0x18, 0x18)
+#define COL_W7_TASKBAR_GLASS2 FB_RGB(0x38, 0x38, 0x38)
+#define COL_W7_TASKBAR_GLASS3 FB_RGB(0x58, 0x58, 0x58)
+
+#define COL_W7_ORB_GRAD_TOP   FB_RGB(0x60, 0xC0, 0x20)
+#define COL_W7_ORB_GRAD_BOT   FB_RGB(0x20, 0x80, 0x10)
+#define COL_W7_ORB_GLOW       FB_RGB(0x80, 0xE0, 0x40)
+#define COL_W7_ORB_HOVER      FB_RGB(0x90, 0xE0, 0x50)
+
+#define COL_W7_SM_HEADER      FB_RGB(0xF0, 0xF0, 0xF0)
+#define COL_W7_SM_LEFT_BG     FB_RGB(0xF8, 0xF8, 0xF8)
+#define COL_W7_SM_RIGHT_BG    FB_RGB(0xE8, 0xEE, 0xF4)
+#define COL_W7_SM_BORDER      FB_RGB(0xC0, 0xC0, 0xC0)
+#define COL_W7_SM_SEARCH_BG   FB_RGB(0xFF, 0xFF, 0xFF)
+#define COL_W7_SM_SEARCH_BDR  FB_RGB(0xA0, 0xA0, 0xA0)
+#define COL_W7_SM_HIGHLIGHT   FB_RGB(0xCC, 0xE0, 0xF5)
+#define COL_W7_SM_HIGHLIGHT2  FB_RGB(0x99, 0xC4, 0xEA)
+
+#define COL_W7_DESKTOP        FB_RGB(0x2A, 0x6A, 0xA0)
+#define COL_W7_DESKTOP_GLASS  FB_RGB(0x0A, 0x3A, 0x70)
+
+/* Alpha blending functions */
+uint32_t fb_blend(uint32_t fg, uint32_t bg, uint8_t alpha);
+void fb_fillrect_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha);
+void fb_draw_glass_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha);
+void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow_color);
+
 #endif
