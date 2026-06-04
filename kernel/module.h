@@ -12,7 +12,7 @@ char keyb_getchar_wrapper(void);
 int keyb_char_avail_wrapper(void);
 uint64_t timer_get_ticks_wrapper(void);
 
-void timer_module_init(kernel_api_t* api);
+
 void ata_module_init(kernel_api_t* api);
 void fat_module_init(kernel_api_t* api);
 

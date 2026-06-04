@@ -5,11 +5,16 @@
 #include "paging.h"
 #include "fb.h"
 #include "font.h"
+#include "io.h"
+
+#define NUM_BACKBUFFERS 3
 
 fb_info_t fb_info;
 
+static uint32_t* backbuffers[NUM_BACKBUFFERS] = {NULL};
 static uint32_t* backbuffer = NULL;
 static uint32_t* mapped_fb = NULL;
+static int current_buffer = 0;
 
 void fb_init(uint64_t phys_addr, uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp)
 {
@@ -35,11 +40,16 @@ void fb_init(uint64_t phys_addr, uint32_t width, uint32_t height, uint32_t pitch
 
 void fb_backbuffer_alloc(void)
 {
-    if (backbuffer) return;
+    if (backbuffers[0]) return;
     uint32_t size = fb_info.height * fb_info.pitch;
-    backbuffer = (uint32_t*)malloc(size);
-    if (backbuffer)
-        memset(backbuffer, 0, size);
+    for (int i = 0; i < NUM_BACKBUFFERS; i++)
+    {
+        backbuffers[i] = (uint32_t*)malloc(size);
+        if (backbuffers[i])
+            memset(backbuffers[i], 0, size);
+    }
+    backbuffer = backbuffers[0];
+    current_buffer = 0;
 }
 
 static void putpixel_raw(uint32_t x, uint32_t y, uint32_t color)
@@ -192,10 +202,31 @@ void fb_drawstring(int x, int y, const char* str, uint32_t fg, uint32_t bg)
     }
 }
 
+static void fb_wait_vblank(void)
+{
+    int timeout = 100000;
+    while (--timeout > 0 && (inb(0x3DA) & 0x08) == 0);
+    timeout = 100000;
+    while (--timeout > 0 && (inb(0x3DA) & 0x08) != 0);
+}
+
+static void fb_swap_buffers(void)
+{
+    int next = (current_buffer + 1) % NUM_BACKBUFFERS;
+    current_buffer = next;
+    backbuffer = backbuffers[current_buffer];
+    memset(backbuffer, 0, fb_info.height * fb_info.pitch);
+}
+
 void fb_blit(void)
 {
     if (!backbuffer) return;
+
+    fb_wait_vblank();
+
     memcpy((void*)(unsigned long)fb_info.addr, backbuffer, fb_info.height * fb_info.pitch);
+
+    fb_swap_buffers();
 }
 
 void fb_clear(uint32_t color)

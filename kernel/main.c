@@ -138,16 +138,12 @@ void kernel_main(void* mbd, uint32_t magic)
     vga_init();
     gui_init();
 
-    timer_module_init(&kernel_api);
     ata_module_init(&kernel_api);
     fat_module_init(&kernel_api);
-    load_disk_modules("\\SYSTEM\\DRIVERS");
     process_init();
     syscall_init();
-
     scheduler_init();
-    timer_start();
-    timer_scheduler_enable();
+    load_disk_modules("\\SYSTEM\\DRIVERS");
 
 
     pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");

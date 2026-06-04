@@ -38,7 +38,7 @@ KERNEL_SRCS = \
     kernel/vga.c \
     kernel/fb.c \
     kernel/gui.c \
-    modules/timer/timer.c \
+    kernel/timer.c \
     modules/ata/ata.c \
     modules/fat/fat.c
 
@@ -94,7 +94,11 @@ modules/mouse/mouse.sys: modules/mouse/mouse.c modules/mouse/mouse.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/mouse/mouse.c -o modules/mouse/mouse.o
 	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/mouse/mouse.ld -o $@ modules/mouse/mouse.o
 
-disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys scripts/build_image.sh
+modules/timer/timer.sys: modules/timer/timer.c modules/timer/timer.ld
+	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/timer/timer.c -o modules/timer/timer.o
+	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/timer/timer.ld -o $@ modules/timer/timer.o
+
+disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh
 	./scripts/build_image.sh
 
 run: blueos.iso disk.img
@@ -111,6 +115,6 @@ clean:
 	rm -f programs/idle/idle.bin programs/idle/idle.exe
 	rm -f modules/keyb/keyb.o modules/keyb/keyb.sys
 	rm -f modules/mouse/mouse.o modules/mouse/mouse.sys
-	rm -f modules/timer/timer.o modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
+	rm -f modules/timer/timer.o modules/timer/timer.sys modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
 	rm -f modules/demo/demo.o modules/demo/demo.sys
 	rm -rf iso

@@ -69,6 +69,10 @@ if command -v mformat &> /dev/null; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/modules/mouse/mouse.sys" ::/SYSTEM/DRIVERS/MOUSE.SYS
         echo "  MOUSE.SYS"
     fi
+    if [ -f "$PROJECT_ROOT/modules/timer/timer.sys" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/modules/timer/timer.sys" ::/SYSTEM/DRIVERS/TIMER.SYS
+        echo "  TIMER.SYS"
+    fi
 
     # Create AUTOEXEC.BAT in /SYSTEM/
     echo "Creating AUTOEXEC.BAT..."
@@ -135,6 +139,10 @@ else
     if [ -f "$PROJECT_ROOT/modules/mouse/mouse.sys" ]; then
         sudo cp "$PROJECT_ROOT/modules/mouse/mouse.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/MOUSE.SYS
         echo "  MOUSE.SYS"
+    fi
+    if [ -f "$PROJECT_ROOT/modules/timer/timer.sys" ]; then
+        sudo cp "$PROJECT_ROOT/modules/timer/timer.sys" "$MOUNT_DIR"/SYSTEM/DRIVERS/TIMER.SYS
+        echo "  TIMER.SYS"
     fi
 
     echo "Creating AUTOEXEC.BAT in /SYSTEM/..."

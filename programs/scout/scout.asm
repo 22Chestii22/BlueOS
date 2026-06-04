@@ -318,7 +318,7 @@ draw_dir_entry:
     call strcpy
     lea rdi, [rel line_buf]
     call strlen
-    mov rdi, [rel line_buf]
+    lea rdi, [rel line_buf]
     add rdi, rax
     mov byte [rdi], '\'
 

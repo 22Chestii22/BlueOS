@@ -12,14 +12,14 @@
 #include "process.h"
 #include "paging.h"
 #include "gdt.h"
+#include "timer.h"
 
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
-extern void timer_handler_and_schedule(context_t* frame);
 
 static char (*registered_keyb_getchar)(void) = NULL;
 static int (*registered_keyb_char_avail)(void) = NULL;
 static uint64_t (*registered_timer_get_ticks)(void) = NULL;
-static void (*registered_timer_sched_handler)(context_t*) = NULL;
+
 
 static void reg_keyb(char (*func)(void))
 {
@@ -34,11 +34,6 @@ static void reg_keyb_char_avail(int (*func)(void))
 static void reg_timer(uint64_t (*func)(void))
 {
     registered_timer_get_ticks = func;
-}
-
-static void reg_timer_sched_handler(void (*handler)(context_t*))
-{
-    registered_timer_sched_handler = handler;
 }
 
 static uint64_t get_kernel_cr3(void)
@@ -83,10 +78,7 @@ int mouse_is_present_wrapper(void)
 
 void timer_isr_dispatch(context_t* frame)
 {
-    if (registered_timer_sched_handler)
-        registered_timer_sched_handler(frame);
-    else
-        timer_handler_and_schedule(frame);
+    timer_handler_and_schedule(frame);
 }
 
 kernel_api_t kernel_api =
@@ -119,7 +111,7 @@ kernel_api_t kernel_api =
     .register_keyb_getchar = reg_keyb,
     .register_keyb_char_avail = reg_keyb_char_avail,
     .register_timer_get_ticks = reg_timer,
-    .register_timer_sched_handler = reg_timer_sched_handler,
+    .timer_scheduler_enable = timer_scheduler_enable,
     .ata_read_sectors = ata_read_sectors,
     .ata_write_sectors = ata_write_sectors,
 

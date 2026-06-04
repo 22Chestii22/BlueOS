@@ -66,8 +66,8 @@ typedef struct
     /* Context switch (needed by timer ISR) */
     void (*context_activate)(struct context* ctx, uint64_t kernel_stack_top);
 
-    /* Timer scheduling handler registration (kernel ISR dispatch calls this) */
-    void (*register_timer_sched_handler)(void (*handler)(struct context*));
+    /* Timer enable (called by timer.sys module_entry) */
+    void (*timer_scheduler_enable)(void);
 
     /* Mouse function registration (kernel gui.c uses wrappers) */
     void (*register_mouse_get_x)(int (*func)(void));
