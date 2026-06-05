@@ -56,5 +56,6 @@ void yield_to_scheduler(void);
 int process_get_count(void);
 int process_get_info(int index, uint32_t* pid, char* name, uint32_t* state);
 uint64_t process_get_cr3(int index);
+void paging_map_all_processes(uint64_t virt, uint64_t phys, uint64_t flags);
 
 #endif

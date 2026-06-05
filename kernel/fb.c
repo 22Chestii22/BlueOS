@@ -6,6 +6,7 @@
 #include "fb.h"
 #include "font.h"
 #include "timer.h"
+#include "process.h"
 
 #define NUM_BACKBUFFERS 2
 
@@ -56,6 +57,7 @@ static uint32_t* backbuffer_alloc_pages(uint32_t size, int idx)
             return NULL;
         }
         map_page_cr3(kernel_cr3, vaddr + i * 0x1000, paddr, 0x03);
+        paging_map_all_processes(vaddr + i * 0x1000, paddr, 0x07);
     }
 
     next_vaddr = vaddr + pages * 0x1000;

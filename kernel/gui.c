@@ -97,6 +97,7 @@ static uint32_t* gui_alloc_pages(uint32_t size)
             return NULL;
         }
         map_page_cr3(kernel_cr3, vaddr + i * 0x1000, paddr, 0x03);
+        paging_map_all_processes(vaddr + i * 0x1000, paddr, 0x07);
     }
 
     next_vaddr = vaddr + pages * 0x1000;
@@ -1189,6 +1190,7 @@ int gui_create(const char* title, int w, int h)
     if ((uint32_t)(cascade_x + w) > fb_info.width - 40) cascade_x = 20;
     if ((uint32_t)(cascade_y + h) > fb_info.height - W7_TASKBAR_H - 40)
         cascade_y = 40;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     return idx;
 }
 

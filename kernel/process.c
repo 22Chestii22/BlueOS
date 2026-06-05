@@ -292,6 +292,19 @@ void process_wait(uint32_t pid)
     }
 }
 
+void paging_map_all_processes(uint64_t virt, uint64_t phys, uint64_t flags)
+{
+    for (int i = 0; i < MAX_PROCESSES; i++)
+    {
+        if (process_table[i].page_table &&
+            process_table[i].state != PROCESS_CREATED &&
+            process_table[i].state != PROCESS_TERMINATED)
+        {
+            map_page_cr3(process_table[i].page_table, virt, phys, flags);
+        }
+    }
+}
+
 int process_get_count(void)
 {
     int count = 0;
