@@ -112,6 +112,7 @@ static int gui_pixel_alloc(gui_window_t* w)
     }
     uint32_t alloc_size = (uint32_t)alloc_size64;
     w->pixels = malloc(alloc_size);
+    w->pixels_page_allocated = 0;
     if (w->pixels)
     {
         memset(w->pixels, 0xFF, alloc_size);
@@ -121,6 +122,7 @@ static int gui_pixel_alloc(gui_window_t* w)
     if (w->pixels)
     {
         memset(w->pixels, 0xFF, alloc_size);
+        w->pixels_page_allocated = 1;
         printf("[GUI] Window '%s' pixel buffer page-allocated (%d KB)\n", w->title, alloc_size / 1024);
         return 1;
     }
@@ -512,35 +514,11 @@ static void draw_window_content(gui_window_t* w)
     }
 }
 
-static void draw_window_outline(gui_window_t* w)
-{
-    int x = w->drag_outline_x;
-    int y = w->drag_outline_y;
-    int ww = w->w;
-    int wh = w->h;
-    for (int i = 0; i < wh; i++)
-    {
-        for (int j = 0; j < ww; j++)
-        {
-            if (i == 0 || i == wh - 1 || j == 0 || j == ww - 1)
-            {
-                if ((i + j) & 1)
-                {
-                    int px = x + j;
-                    int py = y + i;
-                    if (px >= 0 && (uint32_t)px < fb_info.width && py >= 0 && (uint32_t)py < fb_info.height)
-                        fb_putpixel(px, py, COL_BLACK);
-                }
-            }
-        }
-    }
-}
-
 static void draw_window(int idx)
 {
     gui_window_t* w = &windows[idx];
     if (!w->visible || w->minimized) return;
-    if (w->dragging) { draw_window_outline(w); return; }
+    if (w->dragging) { w->x = w->drag_outline_x; w->y = w->drag_outline_y; }
 
     int active = (idx == active_window);
     fb_fillrect(w->x + 1, w->y + GUI_TITLE_HEIGHT + 1, w->w - 2, w->h - GUI_TITLE_HEIGHT - 2, FB_RGB(0xF0, 0xF0, 0xF0));
@@ -1005,6 +983,21 @@ static void handle_click(void)
 
         if (i != active_window) { bring_to_front(i); w = &windows[active_window]; }
 
+        int edge_l = mx - w->x <= GUI_RESIZE_BORDER;
+        int edge_r = w->x + w->w - 1 - mx <= GUI_RESIZE_BORDER;
+        int edge_t = my - w->y <= GUI_RESIZE_BORDER;
+        int edge_b = w->y + w->h - 1 - my <= GUI_RESIZE_BORDER;
+        int edge = (edge_l ? 1 : 0) | (edge_r ? 2 : 0) | (edge_t ? 4 : 0) | (edge_b ? 8 : 0);
+
+        if (edge && !w->maximized)
+        {
+            w->resizing = 1;
+            w->resize_edge = edge;
+            w->drag_off_x = mx;
+            w->drag_off_y = my;
+            return;
+        }
+
         if (my >= w->y && my < w->y + glass_h && !w->maximized)
         {
             w->dragging = 1;
@@ -1050,11 +1043,20 @@ static void gui_ensure_pixels(int win_id)
 {
     if (win_id < 0 || win_id >= num_windows) return;
     gui_window_t* w = &windows[win_id];
-    if (w->pixels) return;
-    w->pw = w->w - 2;
-    w->ph = w->h - GUI_TITLE_HEIGHT - 3;
-    if (w->pw < 1) w->pw = 1;
-    if (w->ph < 1) w->ph = 1;
+    int new_pw = w->w - 2;
+    int new_ph = w->h - GUI_TITLE_HEIGHT - 3;
+    if (new_pw < 1) new_pw = 1;
+    if (new_ph < 1) new_ph = 1;
+    if (w->pixels)
+    {
+        if (w->pw == new_pw && w->ph == new_ph)
+            return;
+        if (!w->pixels_page_allocated)
+            free(w->pixels);
+        w->pixels = NULL;
+    }
+    w->pw = new_pw;
+    w->ph = new_ph;
     gui_pixel_alloc(w);
 }
 
@@ -1330,13 +1332,54 @@ void gui_render(void)
     sm_hover_done: ;
     }
 
-    /* Track dragging */
+    /* Track dragging and resizing */
     for (int i = 0; i < num_windows; i++)
     {
-        if (windows[i].dragging)
+        gui_window_t* w = &windows[i];
+        if (w->dragging)
         {
-            windows[i].drag_outline_x = mx - windows[i].drag_off_x;
-            windows[i].drag_outline_y = my - windows[i].drag_off_y;
+            int new_x = mx - w->drag_off_x;
+            int new_y = my - w->drag_off_y;
+            if (new_x != w->x || new_y != w->y)
+            {
+                mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+                w->x = new_x;
+                w->y = new_y;
+                w->drag_outline_x = new_x;
+                w->drag_outline_y = new_y;
+            }
+        }
+        if (w->resizing)
+        {
+            int dx = mx - w->drag_off_x;
+            int dy = my - w->drag_off_y;
+            int min_w = 100;
+            int min_h = 60;
+            int new_x = w->x, new_y = w->y, new_w = w->w, new_h = w->h;
+            if (w->resize_edge & 1) { new_x = w->x + dx; new_w = w->w - dx; }
+            if (w->resize_edge & 2) { new_w = w->w + dx; }
+            if (w->resize_edge & 4) { new_y = w->y + dy; new_h = w->h - dy; }
+            if (w->resize_edge & 8) { new_h = w->h + dy; }
+            if (new_w < min_w) new_w = min_w;
+            if (new_h < min_h) new_h = min_h;
+            if ((w->resize_edge & 1) && w->x + w->w - new_x < min_w) new_x = w->x + w->w - min_w;
+            if ((w->resize_edge & 4) && w->y + w->h - new_y < min_h) new_y = w->y + w->h - min_h;
+            if (new_x != w->x || new_y != w->y || new_w != w->w || new_h != w->h)
+            {
+                mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+                w->x = new_x; w->y = new_y; w->w = new_w; w->h = new_h;
+                if (w->pixels)
+                {
+                    if (!w->pixels_page_allocated)
+                        free(w->pixels);
+                    w->pixels = NULL;
+                }
+                w->pw = w->w - 2; if (w->pw < 1) w->pw = 1;
+                w->ph = w->h - GUI_TITLE_HEIGHT - 3; if (w->ph < 1) w->ph = 1;
+                gui_pixel_alloc(w);
+                w->drag_off_x = mx;
+                w->drag_off_y = my;
+            }
         }
     }
 
@@ -1358,14 +1401,18 @@ void gui_render(void)
     draw_start_menu();
     draw_taskbar();
 
-    /* Finish drag */
+    /* Finish drag and resize */
     for (int i = 0; i < num_windows; i++)
     {
         if (windows[i].dragging && !(buttons & 1))
         {
-            windows[i].x = windows[i].drag_outline_x;
-            windows[i].y = windows[i].drag_outline_y;
+            mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
             windows[i].dragging = 0;
+        }
+        if (windows[i].resizing && !(buttons & 1))
+        {
+            mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+            windows[i].resizing = 0;
         }
     }
 

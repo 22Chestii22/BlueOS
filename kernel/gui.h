@@ -76,6 +76,7 @@ typedef struct {
     int btn_min_hover;
     int dirty;
     int dirty_x, dirty_y, dirty_w, dirty_h;
+    int pixels_page_allocated;
 } gui_window_t;
 
 void gui_init(void);
