@@ -275,6 +275,15 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 |---|---|
 | `kernel/gui.h` | `pixels_page_allocated` field must be properly initialized in any new window creation path. |
 
+### Session 18 — Aero Glass Frame + Fast Separable Blur
+
+- **Aero Glass frame borders** (`kernel/gui.c`): Extended glass beyond title bar to 4px side/bottom border frame (`W7_GLASS_FRAME_W`). `draw_window()` now draws translucent blue glass on left, right, and bottom borders. Client area centers inside the glass frame with `gf` padding on each side.
+- **`gui_set_window_size()` fixed** (`kernel/gui.c`): Now properly updates `cw`/`ch`, calls `gui_ensure_pixels()` to reallocate pixel buffer, and enforces minimum 100×60 size.
+- **Fast separable box blur** (`kernel/fb.c`): Replaced O(nr²) naive blur with O(2nr) two-pass separable blur. Pass 1: horizontal sliding window. Pass 2: vertical blur. The sliding window updates incrementally (O(1) per pixel per pass) instead of summing the full kernel for each pixel. This is ~radius/2 × faster — at radius 10, roughly 10× faster.
+- **Blur radius increased** from 8 to 10: the separable blur is fast enough to handle larger radius with no performance impact.
+- **All 5/5 QEMU tests pass**, 0 warnings.
+- **Tag**: `v0.13.0` — "Aero Glass frame + fast separable blur"
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:

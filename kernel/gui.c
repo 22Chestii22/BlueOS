@@ -131,15 +131,16 @@ static int gui_pixel_alloc(gui_window_t* w)
 }
 
 static const char* start_left_items[] = {
-    "Scout", "CMD", "RENDER", "Task Manager", NULL
+    "Scout", "CMD", "RENDER", "Task Manager", "EDIT", NULL
 };
 static const char* start_left_paths[] = {
     "\\SYSTEM\\PROGRAMS\\SCOUT.EXE",
     "\\SYSTEM\\PROGRAMS\\CMD.EXE",
     "\\SYSTEM\\PROGRAMS\\RENDER.EXE",
     "\\SYSTEM\\PROGRAMS\\TASKMAN.EXE",
+    "\\SYSTEM\\PROGRAMS\\EDIT.EXE",
 };
-static int start_left_count = 4;
+static int start_left_count = 5;
 
 static const char* start_right_items[] = {
     "Documents", "Computer", "Help & Support", "Run...", NULL

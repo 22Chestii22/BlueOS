@@ -59,6 +59,10 @@ if command -v mformat &> /dev/null; then
         mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/taskman/taskman.exe" ::/SYSTEM/PROGRAMS/TASKMAN.EXE
         echo "  TASKMAN.EXE"
     fi
+    if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/edit/edit.exe" ::/SYSTEM/PROGRAMS/EDIT.EXE
+        echo "  EDIT.EXE"
+    fi
 
     # Copy loadable modules
     echo "Copying modules..."
@@ -134,6 +138,10 @@ else
     if [ -f "$PROJECT_ROOT/programs/taskman/taskman.exe" ]; then
         sudo cp "$PROJECT_ROOT/programs/taskman/taskman.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/TASKMAN.EXE
         echo "  TASKMAN.EXE"
+    fi
+    if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
+        sudo cp "$PROJECT_ROOT/programs/edit/edit.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/EDIT.EXE
+        echo "  EDIT.EXE"
     fi
 
     echo "Copying modules..."

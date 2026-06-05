@@ -87,6 +87,10 @@ programs/taskman/taskman.exe: programs/taskman/taskman.asm scripts/make_pe.py
 	nasm -f bin -o programs/taskman/taskman.bin programs/taskman/taskman.asm
 	python3 scripts/make_pe.py programs/taskman/taskman.bin programs/taskman/taskman.exe
 
+programs/edit/edit.exe: programs/edit/edit.asm scripts/make_pe.py
+	nasm -f bin -o programs/edit/edit.bin programs/edit/edit.asm
+	python3 scripts/make_pe.py programs/edit/edit.bin programs/edit/edit.exe
+
 modules/demo/demo.sys: modules/demo/demo.c modules/demo/demo.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/demo/demo.c -o modules/demo/demo.o
 	gcc -m64 -ffreestanding -nostdlib -fPIC -shared -Wl,-T,modules/demo/demo.ld -o $@ modules/demo/demo.o
@@ -111,7 +115,7 @@ bootloader/stage2.bin: bootloader/stage2.asm
 
 bootloader: bootloader/stage1.bin bootloader/stage2.bin
 
-disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe programs/taskman/taskman.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh bootloader
+disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe programs/taskman/taskman.exe programs/edit/edit.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh bootloader
 	./scripts/build_image.sh
 	python3 scripts/install_bootloader.py disk.img
 
@@ -148,6 +152,7 @@ clean:
 	rm -f programs/gui_render/render.bin programs/gui_render/render.exe
 	rm -f programs/idle/idle.bin programs/idle/idle.exe
 	rm -f programs/taskman/taskman.bin programs/taskman/taskman.exe
+	rm -f programs/edit/edit.bin programs/edit/edit.exe
 	rm -f modules/keyb/keyb.o modules/keyb/keyb.sys
 	rm -f modules/mouse/mouse.o modules/mouse/mouse.sys
 	rm -f modules/timer/timer.o modules/timer/timer.sys modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o

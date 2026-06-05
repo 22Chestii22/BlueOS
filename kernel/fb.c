@@ -497,7 +497,6 @@ void fb_blur_rect_separable(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int 
 
     uint32_t stride = fb_info.pitch / 4;
     int r = radius > 10 ? 10 : radius;
-    int r2 = r * 2 + 1;
 
     uint32_t* tmp = malloc(w * h * 4);
     if (!tmp) return;
@@ -562,9 +561,9 @@ void fb_blur_rect_separable(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int 
         {
             uint32_t rt = 0, gt = 0, bt = 0, cnt = 0;
             int ky_start = (int)(y + row) - r;
-            if (ky_start < 0) ky_start = 0;
+            if (ky_start < (int)y) ky_start = y;
             int ky_end = (int)(y + row) + r;
-            if ((uint32_t)ky_end >= fb_info.height) ky_end = fb_info.height - 1;
+            if (ky_end >= (int)(y + h)) ky_end = (int)(y + h) - 1;
             for (int ky = ky_start; ky <= ky_end; ky++)
             {
                 uint32_t c = tmp[(uint32_t)(ky - y) * w + col];
