@@ -63,6 +63,8 @@ static uint32_t* backbuffer_alloc_pages(uint32_t size, int idx)
     return (uint32_t*)vaddr;
 }
 
+static uint32_t* desktop_bg = NULL;
+
 void fb_backbuffer_alloc(void)
 {
     if (backbuffers[0]) return;
@@ -91,6 +93,49 @@ void fb_backbuffer_alloc(void)
     current_buffer = 0;
     printf("[FB] Backbuffers: %d buffers, %d KB each\n",
            NUM_BACKBUFFERS, size / 1024);
+
+    /* Precompute desktop glass gradient */
+    if (!desktop_bg)
+    {
+        uint32_t bg_pitch = fb_info.width * 4;
+        desktop_bg = (uint32_t*)malloc(bg_pitch * fb_info.height);
+        if (!desktop_bg)
+            desktop_bg = backbuffer_alloc_pages(bg_pitch * fb_info.height, 2);
+        if (desktop_bg)
+        {
+            for (uint32_t row = 0; row < fb_info.height; row++)
+            {
+                uint8_t r = 0x0A + (uint32_t)(0x2A - 0x0A) * row / fb_info.height;
+                uint8_t g = 0x3A + (uint32_t)(0x6A - 0x3A) * row / fb_info.height;
+                uint8_t b = 0x70 + (uint32_t)(0xA0 - 0x70) * row / fb_info.height;
+                uint32_t color = FB_RGB(r, g, b);
+                uint32_t* row_ptr = &desktop_bg[row * fb_info.width];
+                for (uint32_t col = 0; col < fb_info.width; col++)
+                    row_ptr[col] = color;
+            }
+            printf("[FB] Desktop background precomputed (%d KB)\n",
+                   (fb_info.width * fb_info.height * 4) / 1024);
+        }
+    }
+}
+
+void fb_apply_desktop_bg(void)
+{
+    if (desktop_bg && backbuffer)
+    {
+        memcpy(backbuffer, desktop_bg, fb_info.height * fb_info.pitch);
+    }
+    else
+    {
+        uint32_t hh = fb_info.height;
+        for (uint32_t row = 0; row < hh; row++)
+        {
+            uint8_t r = 0x0A + (uint32_t)(0x2A - 0x0A) * row / hh;
+            uint8_t g = 0x3A + (uint32_t)(0x6A - 0x3A) * row / hh;
+            uint8_t b = 0x70 + (uint32_t)(0xA0 - 0x70) * row / hh;
+            fb_draw_hline((int)row, 0, (int)(fb_info.width - 1), FB_RGB(r, g, b));
+        }
+    }
 }
 
 static void putpixel_raw(uint32_t x, uint32_t y, uint32_t color)

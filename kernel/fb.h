@@ -26,6 +26,7 @@ void fb_backbuffer_alloc(void);
 void fb_clear(uint32_t color);
 void fb_bsod_panic(uint64_t num, uint64_t error_code, uint64_t rip);
 uint32_t* fb_get_backbuffer(void);
+void fb_apply_desktop_bg(void);
 
 #define FB_RGB(r, g, b) (((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | (uint32_t)(b))
 #define FB_GET_R(c) (((c) >> 16) & 0xFF)

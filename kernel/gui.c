@@ -30,6 +30,7 @@ static int screen_dirty_x = 0, screen_dirty_y = 0;
 static int screen_dirty_w = 0, screen_dirty_h = 0;
 
 #define GUI_PIXEL_VADDR_BASE 0x3000000
+#define W7_GLASS_FRAME_W 4
 
 static void mark_screen_dirty(int x, int y, int w, int h)
 {
@@ -250,14 +251,7 @@ static void draw_orb_button(int x, int y, int size, int hovered)
 
 static void draw_desktop_glass(void)
 {
-    uint32_t hh = fb_info.height;
-    for (uint32_t row = 0; row < hh; row++)
-    {
-        uint8_t r = 0x0A + (uint32_t)(0x2A - 0x0A) * row / hh;
-        uint8_t g = 0x3A + (uint32_t)(0x6A - 0x3A) * row / hh;
-        uint8_t b = 0x70 + (uint32_t)(0xA0 - 0x70) * row / hh;
-        fb_draw_hline((int)row, 0, (int)(fb_info.width - 1), FB_RGB(r, g, b));
-    }
+    fb_apply_desktop_bg();
 }
 
 static void draw_window_shadow(gui_window_t* w)
@@ -290,17 +284,26 @@ static void draw_aero_title_bar(gui_window_t* w, int active)
     uint8_t tint_alpha = W7_GLASS_TINT_ALPHA;
 
     /* Save background behind title bar for blur */
-    uint32_t* saved_bg = malloc((uint32_t)(tw * glass_h * 4));
-    if (saved_bg)
+    if (active)
     {
-        fb_save_region((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, saved_bg);
-        fb_blur_rect_fast((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, W7_GLASS_BLUR_RADIUS);
+        uint32_t need = (uint32_t)(tw * glass_h * 4);
+        if (!w->blur_cache || w->blur_cache_w < tw)
+        {
+            if (w->blur_cache) free(w->blur_cache);
+            w->blur_cache = malloc(need);
+            w->blur_cache_w = tw;
+        }
+        if (w->blur_cache)
+        {
+            fb_save_region((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, w->blur_cache);
+            fb_blur_rect_fast((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, W7_GLASS_BLUR_RADIUS);
+        }
     }
 
     if (active)
         tint_color = FB_RGB(0x10, 0x50, 0xCC);
     else
-        tint_color = FB_RGB(0xA0, 0xA0, 0xA0);
+        tint_color = FB_RGB(0x40, 0x40, 0x40);
 
     fb_fillrect_alpha((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, tint_color, tint_alpha);
 
@@ -343,8 +346,6 @@ static void draw_aero_title_bar(gui_window_t* w, int active)
         fb_draw_glow_text(tx, y + 4, w->title, COL_WHITE, COL_W7_AERO_GLOW);
     else
         fb_drawstring(tx, y + 4, w->title, FB_RGB(0x60, 0x60, 0x60), 0);
-
-    free(saved_bg);
 
     /* Capture button hover states from mouse */
     int mmx = mouse_get_x_wrapper();
@@ -396,10 +397,11 @@ static void draw_aero_title_bar(gui_window_t* w, int active)
 
 static void draw_window_content(gui_window_t* w)
 {
-    int cx = w->x + 1;
-    int cy = w->y + GUI_TITLE_HEIGHT + 1;
-    int cw = w->w - 2;
-    int ch = w->h - GUI_TITLE_HEIGHT - 3;
+    int gf = W7_GLASS_FRAME_W;
+    int cx = w->x + gf;
+    int cy = w->y + GUI_TITLE_HEIGHT + gf;
+    int cw = w->w - gf * 2;
+    int ch = w->h - GUI_TITLE_HEIGHT - gf * 2 - 1;
     uint32_t fbw = fb_info.width;
     uint32_t fbh = fb_info.height;
 
@@ -515,8 +517,6 @@ static void draw_window_content(gui_window_t* w)
     }
 }
 
-#define W7_GLASS_FRAME_W 4
-
 static void draw_window(int idx)
 {
     gui_window_t* w = &windows[idx];
@@ -535,7 +535,6 @@ static void draw_window(int idx)
     if (active)
     {
         uint32_t frame_col = FB_RGB(0x20, 0x60, 0xD0);
-        fb_fillrect_alpha(x, y + GUI_TITLE_HEIGHT + gf, ww, gf, frame_col, tint_alpha * 3 / 4);
         fb_fillrect_alpha(x, y + GUI_TITLE_HEIGHT, gf, wh - GUI_TITLE_HEIGHT, frame_col, tint_alpha * 3 / 4);
         fb_fillrect_alpha(x + ww - gf, y + GUI_TITLE_HEIGHT, gf, wh - GUI_TITLE_HEIGHT, frame_col, tint_alpha * 3 / 4);
         fb_fillrect_alpha(x + gf, y + wh - gf, ww - gf * 2, gf, frame_col, tint_alpha * 3 / 4);
@@ -552,8 +551,8 @@ static void draw_window(int idx)
     for (int b = 0; b < w->num_buttons; b++)
     {
         gui_button_t* btn = &w->buttons[b];
-        int bx = x + 1 + btn->x * FONT_WIDTH;
-        int by = y + GUI_TITLE_HEIGHT + 1 + btn->y * FONT_HEIGHT;
+        int bx = x + W7_GLASS_FRAME_W + btn->x * FONT_WIDTH;
+        int by = y + GUI_TITLE_HEIGHT + W7_GLASS_FRAME_W + btn->y * FONT_HEIGHT;
         int bw = btn->w * FONT_WIDTH;
         int bh = FONT_HEIGHT + 4;
         fb_fillrect(bx, by, bw, bh, FB_RGB(0xEC, 0xE9, 0xD8));
@@ -1026,14 +1025,14 @@ static void handle_click(void)
             return;
         }
 
-        int cx = mx - (w->x + 1);
-        int cy = my - (w->y + glass_h + 1);
-        for (int b = 0; b < w->num_buttons; b++)
-        {
-            gui_button_t* btn = &w->buttons[b];
-            int bx = btn->x * FONT_WIDTH;
-            int by = btn->y * FONT_HEIGHT;
-            if (cx >= bx && cx < bx + btn->w * FONT_WIDTH && cy >= by && cy < by + FONT_HEIGHT + 4)
+    int cx = mx - (w->x + W7_GLASS_FRAME_W);
+    int cy = my - (w->y + glass_h + W7_GLASS_FRAME_W);
+    for (int b = 0; b < w->num_buttons; b++)
+    {
+        gui_button_t* btn = &w->buttons[b];
+        int bx = btn->x * FONT_WIDTH;
+        int by = btn->y * FONT_HEIGHT;
+        if (cx >= bx && cx < bx + btn->w * FONT_WIDTH && cy >= by && cy < by + FONT_HEIGHT + 4)
             {
                 if (btn->on_click) btn->on_click(i, b);
                 return;
@@ -1061,8 +1060,8 @@ static void gui_ensure_pixels(int win_id)
 {
     if (win_id < 0 || win_id >= num_windows) return;
     gui_window_t* w = &windows[win_id];
-    int new_pw = w->w - 2;
-    int new_ph = w->h - GUI_TITLE_HEIGHT - 3;
+    int new_pw = w->w - W7_GLASS_FRAME_W * 2;
+    int new_ph = w->h - GUI_TITLE_HEIGHT - W7_GLASS_FRAME_W * 2 - 1;
     if (new_pw < 1) new_pw = 1;
     if (new_ph < 1) new_ph = 1;
     if (w->pixels)
@@ -1159,8 +1158,9 @@ int gui_create(const char* title, int w, int h)
     win->minimized = 0;
     win->maximized = 0;
     win->pixels = 0;
-    win->cw = (w - 2) / FONT_WIDTH;
-    win->ch = (h - GUI_TITLE_HEIGHT - 3) / FONT_HEIGHT;
+    int gf = W7_GLASS_FRAME_W;
+    win->cw = (w - gf * 2) / FONT_WIDTH;
+    win->ch = (h - GUI_TITLE_HEIGHT - gf * 2 - 1) / FONT_HEIGHT;
     win->cursor_x = 0;
     win->cursor_y = 0;
     win->num_buttons = 0;
@@ -1171,10 +1171,12 @@ int gui_create(const char* title, int w, int h)
     win->btn_close_hover = 0;
     win->btn_max_hover = 0;
     win->btn_min_hover = 0;
+    win->blur_cache = NULL;
+    win->blur_cache_w = 0;
     if (win->cw < 1) win->cw = 1;
     if (win->ch < 1) win->ch = 1;
-    win->pw = win->w - 2;
-    win->ph = win->h - GUI_TITLE_HEIGHT - 3;
+    win->pw = win->w - gf * 2;
+    win->ph = win->h - GUI_TITLE_HEIGHT - gf * 2 - 1;
     if (win->pw < 1) win->pw = 1;
     if (win->ph < 1) win->ph = 1;
     gui_pixel_alloc(win);
@@ -1392,8 +1394,8 @@ void gui_render(void)
                         free(w->pixels);
                     w->pixels = NULL;
                 }
-                w->pw = w->w - 2; if (w->pw < 1) w->pw = 1;
-                w->ph = w->h - GUI_TITLE_HEIGHT - 3; if (w->ph < 1) w->ph = 1;
+                w->pw = w->w - W7_GLASS_FRAME_W * 2; if (w->pw < 1) w->pw = 1;
+                w->ph = w->h - GUI_TITLE_HEIGHT - W7_GLASS_FRAME_W * 2 - 1; if (w->ph < 1) w->ph = 1;
                 gui_pixel_alloc(w);
                 w->drag_off_x = mx;
                 w->drag_off_y = my;
@@ -1577,8 +1579,8 @@ void gui_set_window_size(int win_id, int w, int h)
     if (h < 60) h = 60;
     windows[win_id].w = w;
     windows[win_id].h = h;
-    windows[win_id].cw = (w - 2) / FONT_WIDTH;
-    windows[win_id].ch = (h - GUI_TITLE_HEIGHT - 3) / FONT_HEIGHT;
+    windows[win_id].cw = (w - W7_GLASS_FRAME_W * 2) / FONT_WIDTH;
+    windows[win_id].ch = (h - GUI_TITLE_HEIGHT - W7_GLASS_FRAME_W * 2 - 1) / FONT_HEIGHT;
     if (windows[win_id].cw < 1) windows[win_id].cw = 1;
     if (windows[win_id].ch < 1) windows[win_id].ch = 1;
     gui_ensure_pixels(win_id);

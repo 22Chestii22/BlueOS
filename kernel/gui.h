@@ -77,6 +77,8 @@ typedef struct {
     int dirty;
     int dirty_x, dirty_y, dirty_w, dirty_h;
     int pixels_page_allocated;
+    uint32_t* blur_cache;
+    int blur_cache_w;
 } gui_window_t;
 
 void gui_init(void);
