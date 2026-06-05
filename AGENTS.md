@@ -241,6 +241,24 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - **Build**: 0 warnings, 5/5 QEMU tests pass.
 - **Tag**: `v0.9.1` — "Fix empty GUI windows with page-level pixel buffer fallback"
 
+### Session 16 — 4K Framebuffer Support + map_page_cr3() Infrastructure
+
+- **128MB identity mapping**: `boot.asm` increased from 32→64 huge pages (2MB each), covering 0x0-0x8000000 (was 0x0-0x4000000). This provides enough mapped space for 4K backbuffers and heap.
+- **96MB heap**: `HEAP_SIZE` increased from 0x2000000→0x6000000 (32MB→96MB). At 3840×2160×32bpp, 2 backbuffers = ~63MB, pixel buffers = ~12MB, fits within 96MB. Heap is identity-mapped and visible to all processes via deep-copied page tables.
+- **`map_page_cr3()`** (`kernel/paging.c`): New function that maps a 4KB page into any specified CR3's page tables. Unlike `map_page()` (which uses current CR3 only), this enables mapping pages into kernel_cr3 or any process's page tables.
+- **`split_huge_page()`**: Extracted huge page splitting logic from `paging_map_user()` into a shared helper. `map_page_cr3()` now correctly splits 2MB huge pages when mapping 4KB pages at overlapping addresses (fixes latent bug where `map_page()` treated huge page entries as page table pointers).
+- **`map_page()` refactored**: Now reads current CR3 and delegates to `map_page_cr3()`, eliminating code duplication.
+- **Page alloc fallback fixed**: `gui_alloc_pages()` and `backbuffer_alloc_pages()` now use `map_page_cr3(kernel_cr3, ...)` instead of `map_page()`, ensuring pixel/backbuffer pages map into kernel_cr3 rather than the current process's CR3.
+- **Build**: 0 new warnings, 5/5 QEMU tests pass.
+- **Tag**: `v0.10.0` — "4K framebuffer support with 128MB identity mapping and 96MB heap"
+
+## Files Requiring Careful Edits (additions)
+
+| File | Why |
+|---|---|
+| `kernel/boot.asm` | Identity mapping count (line 61: `cmp ecx, 64`). MUST keep aligned with heap size — heap must fit within identity-mapped region. |
+| `kernel/paging.c` | `map_page_cr3()` and `split_huge_page()`. Any page mapping that needs cross-process visibility must go through `map_page_cr3(kernel_cr3, ...)`. |
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:

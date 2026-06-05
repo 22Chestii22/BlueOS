@@ -74,6 +74,8 @@ typedef struct {
     int btn_close_hover;
     int btn_max_hover;
     int btn_min_hover;
+    int dirty;
+    int dirty_x, dirty_y, dirty_w, dirty_h;
 } gui_window_t;
 
 void gui_init(void);

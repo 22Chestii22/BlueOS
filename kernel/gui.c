@@ -25,7 +25,60 @@ static int cascade_y = 40;
 static int start_menu_open = 0;
 static int start_menu_hovered = -1;
 
+static int screen_dirty = 1;
+static int screen_dirty_x = 0, screen_dirty_y = 0;
+static int screen_dirty_w = 0, screen_dirty_h = 0;
+
 #define GUI_PIXEL_VADDR_BASE 0x3000000
+
+static void mark_screen_dirty(int x, int y, int w, int h)
+{
+    if (!screen_dirty)
+    {
+        screen_dirty = 1;
+        screen_dirty_x = x;
+        screen_dirty_y = y;
+        screen_dirty_w = w;
+        screen_dirty_h = h;
+        return;
+    }
+    int x1 = screen_dirty_x < x ? screen_dirty_x : x;
+    int y1 = screen_dirty_y < y ? screen_dirty_y : y;
+    int x2 = (screen_dirty_x + screen_dirty_w) > (x + w) ? (screen_dirty_x + screen_dirty_w) : (x + w);
+    int y2 = (screen_dirty_y + screen_dirty_h) > (y + h) ? (screen_dirty_y + screen_dirty_h) : (y + h);
+    screen_dirty_x = x1;
+    screen_dirty_y = y1;
+    screen_dirty_w = x2 - x1;
+    screen_dirty_h = y2 - y1;
+}
+
+static void mark_window_dirty(int win_id, int x, int y, int w, int h)
+{
+    if (win_id < 0 || win_id >= GUI_MAX_WINDOWS) return;
+    gui_window_t* win = &windows[win_id];
+    int ax = win->x + x;
+    int ay = win->y + GUI_TITLE_HEIGHT + y;
+    if (!win->dirty)
+    {
+        win->dirty = 1;
+        win->dirty_x = ax;
+        win->dirty_y = ay;
+        win->dirty_w = w;
+        win->dirty_h = h;
+    }
+    else
+    {
+        int x1 = win->dirty_x < ax ? win->dirty_x : ax;
+        int y1 = win->dirty_y < ay ? win->dirty_y : ay;
+        int x2 = (win->dirty_x + win->dirty_w) > (ax + w) ? (win->dirty_x + win->dirty_w) : (ax + w);
+        int y2 = (win->dirty_y + win->dirty_h) > (ay + h) ? (win->dirty_y + win->dirty_h) : (ay + h);
+        win->dirty_x = x1;
+        win->dirty_y = y1;
+        win->dirty_w = x2 - x1;
+        win->dirty_h = y2 - y1;
+    }
+    mark_screen_dirty(ax, ay, w, h);
+}
 
 static uint32_t* gui_alloc_pages(uint32_t size)
 {
@@ -731,6 +784,7 @@ static void handle_start_menu_click(int mx, int my)
     if (mx < smx || mx >= smx + W7_SM_TOTAL_W || my < smy || my >= smy + total_h)
     {
         start_menu_open = 0;
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         return;
     }
     if (my < smy + W7_SM_HEADER_H) return;
@@ -746,6 +800,7 @@ static void handle_start_menu_click(int mx, int my)
         if (mx >= shutdown_x && mx < shutdown_x + 96)
         {
             start_menu_open = 0;
+            mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
             cmd_should_exit = 1;
         }
         return;
@@ -761,6 +816,7 @@ static void handle_start_menu_click(int mx, int my)
         if (idx < start_left_count)
         {
             start_menu_open = 0;
+            mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
             if (start_left_paths[idx])
                 pe_spawn(start_left_paths[idx]);
         }
@@ -769,6 +825,7 @@ static void handle_start_menu_click(int mx, int my)
     {
         if (idx >= start_right_count) return;
         start_menu_open = 0;
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         if (strcmp(start_right_items[idx], "Run...") == 0)
         {
             if (gui_terminal_win >= 0)
@@ -809,6 +866,7 @@ static int handle_taskbar_click(int mx, int my)
     if (mx >= orb_x && mx < orb_x + W7_ORB_SIZE)
     {
         start_menu_open = !start_menu_open;
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         return 1;
     }
 
@@ -880,8 +938,8 @@ static void handle_click(void)
         int in_menu = (mx >= smx && mx < smx + W7_SM_TOTAL_W && my >= smy && my < smy + total_h);
         if (in_menu) { handle_start_menu_click(mx, my); return; }
         int orb_x = 6;
-        if (my >= tby && mx >= orb_x && mx < orb_x + W7_ORB_SIZE) { start_menu_open = 0; return; }
-        start_menu_open = 0;
+        if (my >= tby && mx >= orb_x && mx < orb_x + W7_ORB_SIZE) { start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height); return; }
+        start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     }
 
     if (handle_taskbar_click(mx, my)) return;
@@ -1017,6 +1075,7 @@ void gui_draw_rect(int win_id, int x, int y, int w, int h, uint32_t color)
         for (int col = 0; col < w; col++)
             line[col] = color;
     }
+    mark_window_dirty(win_id, x, y, w, h);
 }
 
 void gui_draw_text(int win_id, int x, int y, const char* str, uint32_t fg, uint32_t bg)
@@ -1026,9 +1085,11 @@ void gui_draw_text(int win_id, int x, int y, const char* str, uint32_t fg, uint3
     gui_window_t* win = &windows[win_id];
     if (!win->pixels || !str) return;
     int cx = x;
+    int start_x = x;
+    int max_y = y;
     for (int i = 0; str[i]; i++)
     {
-        if (str[i] == '\n') { cx = x; y += FONT_HEIGHT; continue; }
+        if (str[i] == '\n') { cx = x; y += FONT_HEIGHT; max_y = y; continue; }
         int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
         if (ci < 0 || ci >= FONT_NUM_CHARS) continue;
         for (int row = 0; row < FONT_HEIGHT; row++)
@@ -1045,6 +1106,7 @@ void gui_draw_text(int win_id, int x, int y, const char* str, uint32_t fg, uint3
         }
         cx += FONT_WIDTH;
     }
+    mark_window_dirty(win_id, start_x, y - ((max_y > y) ? (max_y - y) : 0), cx - start_x, max_y - y + FONT_HEIGHT);
 }
 
 void gui_init(void)
@@ -1108,6 +1170,13 @@ int gui_create(const char* title, int w, int h)
     return idx;
 }
 
+static void mark_terminal_dirty(int idx)
+{
+    if (idx < 0 || idx >= num_windows) return;
+    gui_window_t* w = &windows[idx];
+    mark_window_dirty(idx, 0, 0, w->pw, w->ph);
+}
+
 void gui_putchar(int idx, char c)
 {
     if (idx < 0 || idx >= num_windows) return;
@@ -1136,6 +1205,7 @@ void gui_putchar(int idx, char c)
         memset(w->content + (w->ch - 1) * w->cw, ' ', w->cw);
         w->cursor_y = w->ch - 1;
     }
+    mark_terminal_dirty(idx);
 }
 
 void gui_puts(int idx, const char* str)
@@ -1156,6 +1226,10 @@ void gui_clear(int idx)
         w->cursor_x = 0;
         w->cursor_y = 0;
     }
+    if (w->pixels)
+        mark_window_dirty(idx, 0, 0, w->pw, w->ph);
+    else
+        mark_terminal_dirty(idx);
 }
 
 int gui_add_button(int idx, const char* label, int bx, int by, int bw, void (*cb)(int, int))
@@ -1180,6 +1254,30 @@ void gui_render(void)
 {
     if (!initialized) return;
 
+    uint8_t buttons = mouse_get_buttons_wrapper();
+    int mx = mouse_get_x_wrapper();
+    int my = mouse_get_y_wrapper();
+    static int prev_mx = 0, prev_my = 0;
+
+    int click_detected = (buttons & 1) && !(prev_buttons & 1);
+
+    if (buttons != prev_buttons)
+    {
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+        prev_buttons = buttons;
+    }
+
+    if (mx != prev_mx || my != prev_my)
+    {
+        mark_screen_dirty(prev_mx - 5, prev_my - 5, 20, 20);
+        mark_screen_dirty(mx - 5, my - 5, 20, 20);
+        prev_mx = mx;
+        prev_my = my;
+    }
+
+    if (!screen_dirty)
+        return;
+
     fb_backbuffer_alloc();
 
     draw_desktop_glass();
@@ -1191,6 +1289,7 @@ void gui_render(void)
         int tby = fb_info.height - W7_TASKBAR_H;
         int mmx = mouse_get_x_wrapper();
         int mmy = mouse_get_y_wrapper();
+        int prev_hovered = start_menu_hovered;
         start_menu_hovered = -1;
         int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
         int total_h = W7_SM_HEADER_H + max_items * W7_SM_ITEM_H + W7_SM_SEARCH_H + W7_SM_BOTTOM_H;
@@ -1226,6 +1325,8 @@ void gui_render(void)
                 }
             }
         }
+        if (start_menu_hovered != prev_hovered)
+            mark_screen_dirty(2, smy, W7_SM_TOTAL_W, total_h);
     sm_hover_done: ;
     }
 
@@ -1234,8 +1335,6 @@ void gui_render(void)
     {
         if (windows[i].dragging)
         {
-            int mx = mouse_get_x_wrapper();
-            int my = mouse_get_y_wrapper();
             windows[i].drag_outline_x = mx - windows[i].drag_off_x;
             windows[i].drag_outline_y = my - windows[i].drag_off_y;
         }
@@ -1260,7 +1359,6 @@ void gui_render(void)
     draw_taskbar();
 
     /* Finish drag */
-    uint8_t buttons = mouse_get_buttons_wrapper();
     for (int i = 0; i < num_windows; i++)
     {
         if (windows[i].dragging && !(buttons & 1))
@@ -1271,18 +1369,31 @@ void gui_render(void)
         }
     }
 
-    if ((buttons & 1) && !(prev_buttons & 1))
+    if (click_detected)
         handle_click();
-    prev_buttons = buttons;
 
     draw_mouse_cursor();
+
+    screen_dirty = 0;
+    screen_dirty_w = 0;
+    screen_dirty_h = 0;
+    for (int i = 0; i < num_windows; i++)
+    {
+        windows[i].dirty = 0;
+        windows[i].dirty_w = 0;
+        windows[i].dirty_h = 0;
+    }
+
     fb_blit();
 }
 
 void gui_set_active(int idx)
 {
     if (idx >= 0 && idx < num_windows)
+    {
         active_window = idx;
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+    }
 }
 
 void gui_set_content_click_callback(int win_id, void (*cb)(int, int, int))
@@ -1298,6 +1409,8 @@ void gui_set_title(int win_id, const char* title)
     if (slen >= (int)sizeof(windows[win_id].title)) slen = sizeof(windows[win_id].title) - 1;
     memcpy(windows[win_id].title, title, slen);
     windows[win_id].title[slen] = 0;
+    gui_window_t* w = &windows[win_id];
+    mark_screen_dirty(w->x, w->y, w->w, GUI_TITLE_HEIGHT + 1);
 }
 
 void gui_get_window_rect(int win_id, int* x, int* y, int* w, int* h)
@@ -1331,6 +1444,7 @@ void gui_minimize_window(int win_id)
 {
     if (win_id < 0 || win_id >= num_windows) return;
     windows[win_id].minimized = 1;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
 }
 
 void gui_maximize_window(int win_id)
@@ -1348,6 +1462,7 @@ void gui_maximize_window(int win_id)
         w->w = fb_info.width;
         w->h = fb_info.height - W7_TASKBAR_H - GUI_TITLE_HEIGHT - 2;
         w->maximized = 1;
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     }
 }
 
@@ -1362,6 +1477,7 @@ void gui_restore_window(int win_id)
         w->w = w->restore_w;
         w->h = w->restore_h;
         w->maximized = 0;
+        mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     }
 }
 
@@ -1372,6 +1488,7 @@ void gui_close_window(int win_id)
     windows[win_id].minimized = 0;
     if (active_window == win_id)
         active_window = -1;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
 }
 
 int gui_is_window_visible(int win_id)
@@ -1385,6 +1502,7 @@ void gui_set_window_pos(int win_id, int x, int y)
     if (win_id < 0 || win_id >= num_windows) return;
     windows[win_id].x = x;
     windows[win_id].y = y;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
 }
 
 void gui_set_window_size(int win_id, int w, int h)
@@ -1392,10 +1510,12 @@ void gui_set_window_size(int win_id, int w, int h)
     if (win_id < 0 || win_id >= num_windows) return;
     windows[win_id].w = w;
     windows[win_id].h = h;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
 }
 
 void gui_set_window_minimized(int win_id, int minimized)
 {
     if (win_id < 0 || win_id >= num_windows) return;
     windows[win_id].minimized = minimized ? 1 : 0;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
 }
