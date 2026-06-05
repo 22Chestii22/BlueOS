@@ -19,7 +19,7 @@
 #define W7_SHOWDESKTOP_W 4
 
 #define W7_TITLE_GLOW    1
-#define W7_GLASS_BLUR_RADIUS 8
+#define W7_GLASS_BLUR_RADIUS 10
 #define W7_GLASS_TINT_ALPHA  160
 
 #define W7_SM_HEADER_H   50

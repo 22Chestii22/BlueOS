@@ -487,7 +487,7 @@ void fb_blur_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
     free(tmp);
 }
 
-void fb_blur_rect_fast(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
+void fb_blur_rect_separable(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
 {
     if (!backbuffer) return;
     if (w == 0 || h == 0 || radius <= 0) return;
@@ -496,46 +496,94 @@ void fb_blur_rect_fast(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radiu
     if (y + h > fb_info.height) h = fb_info.height - y;
 
     uint32_t stride = fb_info.pitch / 4;
-    int r = radius > 6 ? 6 : radius;
+    int r = radius > 10 ? 10 : radius;
+    int r2 = r * 2 + 1;
+
     uint32_t* tmp = malloc(w * h * 4);
     if (!tmp) return;
 
+    /* Pass 1: horizontal blur */
     for (uint32_t row = 0; row < h; row++)
     {
-        uint32_t* dst = &tmp[row * w];
+        uint32_t* src_line = &backbuffer[(y + row) * stride];
+        uint32_t* dst_line = &tmp[row * w];
+
+        /* Initialize sliding window for first pixel */
+        uint32_t rt = 0, gt = 0, bt = 0;
+        int cnt = 0;
+        int kx_start = (int)(x) - r;
+        if (kx_start < 0) kx_start = 0;
+        for (int kx = kx_start; kx < (int)(x) + r + 1; kx++)
+        {
+            if ((uint32_t)kx >= fb_info.width) break;
+            uint32_t c = src_line[kx];
+            rt += FB_GET_R(c);
+            gt += FB_GET_G(c);
+            bt += FB_GET_B(c);
+            cnt++;
+        }
+        if (cnt == 0) cnt = 1;
+        dst_line[0] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
+
+        /* Slide window across row */
+        for (uint32_t col = 1; col < w; col++)
+        {
+            int cx = (int)(x + col);
+            /* Subtract leftmost pixel leaving window */
+            int left_kx = cx - r - 1;
+            if (left_kx >= 0 && (uint32_t)left_kx < fb_info.width)
+            {
+                uint32_t c = src_line[left_kx];
+                rt -= FB_GET_R(c);
+                gt -= FB_GET_G(c);
+                bt -= FB_GET_B(c);
+                cnt--;
+            }
+            /* Add rightmost pixel entering window */
+            int right_kx = cx + r;
+            if (right_kx >= 0 && (uint32_t)right_kx < fb_info.width)
+            {
+                uint32_t c = src_line[right_kx];
+                rt += FB_GET_R(c);
+                gt += FB_GET_G(c);
+                bt += FB_GET_B(c);
+                cnt++;
+            }
+            if (cnt == 0) cnt = 1;
+            dst_line[col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
+        }
+    }
+
+    /* Pass 2: vertical blur into backbuffer */
+    for (uint32_t row = 0; row < h; row++)
+    {
+        uint32_t* dst_line = &backbuffer[(y + row) * stride + x];
         for (uint32_t col = 0; col < w; col++)
         {
             uint32_t rt = 0, gt = 0, bt = 0, cnt = 0;
             int ky_start = (int)(y + row) - r;
-            int ky_end = (int)(y + row) + r;
-            int kx_start = (int)(x + col) - r;
-            int kx_end = (int)(x + col) + r;
             if (ky_start < 0) ky_start = 0;
+            int ky_end = (int)(y + row) + r;
             if ((uint32_t)ky_end >= fb_info.height) ky_end = fb_info.height - 1;
-            if (kx_start < 0) kx_start = 0;
-            if ((uint32_t)kx_end >= fb_info.width) kx_end = fb_info.width - 1;
             for (int ky = ky_start; ky <= ky_end; ky++)
             {
-                uint32_t* src_line = &backbuffer[(uint32_t)ky * stride];
-                for (int kx = kx_start; kx <= kx_end; kx++)
-                {
-                    uint32_t c = src_line[kx];
-                    rt += FB_GET_R(c);
-                    gt += FB_GET_G(c);
-                    bt += FB_GET_B(c);
-                    cnt++;
-                }
+                uint32_t c = tmp[(uint32_t)(ky - y) * w + col];
+                rt += FB_GET_R(c);
+                gt += FB_GET_G(c);
+                bt += FB_GET_B(c);
+                cnt++;
             }
             if (cnt == 0) cnt = 1;
-            dst[col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
+            dst_line[col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
         }
     }
 
-    for (uint32_t row = 0; row < h; row++)
-        for (uint32_t col = 0; col < w; col++)
-            backbuffer[(y + row) * stride + x + col] = tmp[row * w + col];
-
     free(tmp);
+}
+
+void fb_blur_rect_fast(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
+{
+    fb_blur_rect_separable(x, y, w, h, radius);
 }
 
 void fb_dwm_glass(uint32_t x, uint32_t y, uint32_t w, uint32_t h,

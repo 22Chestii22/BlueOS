@@ -259,6 +259,22 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 | `kernel/boot.asm` | Identity mapping count (line 61: `cmp ecx, 64`). MUST keep aligned with heap size — heap must fit within identity-mapped region. |
 | `kernel/paging.c` | `map_page_cr3()` and `split_huge_page()`. Any page mapping that needs cross-process visibility must go through `map_page_cr3(kernel_cr3, ...)`. |
 
+### Session 17 — Window Resize/Drag + Pixel Buffer Allocation Tracking
+
+- **Window resize by dragging edges/corners**: Added edge detection (4 edges + 4 corners) in `handle_click()`. Resize tracks `resize_edge` bitmask (1=left, 2=right, 4=top, 8=bottom). Windows enforce minimum size (100×60). Resize repositioning updates window dimensions in real-time.
+- **Real-time window dragging**: `w->dragging` flag updates `w->x`/`w->y` directly each frame (removed outline-only mode). `draw_window()` no longer repositions in its own block — handled in `gui_render()` tracking loop.
+- **`pixels_page_allocated` flag**: Added `int pixels_page_allocated` to `gui_window_t` in `gui.h`. Set in `gui_pixel_alloc()` — 0 for heap allocations, 1 for page-allocated. `gui_ensure_pixels()` and resize code check this flag before calling `free()` — prevents crash when page-allocated pixel buffers are freed via `free()` (heap corruption).
+- **Immediate pixel reallocation on resize**: Resize code now calls `gui_pixel_alloc()` immediately after freeing old buffer (was leaving `w->pixels = NULL`, causing one frame with blank window).
+- **Latent bug fixed**: The `free()` on page-allocated memory would only trigger at 4K resolution where pixel buffers (~12MB per window) exceed the 96MB heap and fall back to page allocation. Now safely tracked.
+- **All 5/5 QEMU tests pass** (boot, modules, 4k, cmd, full-boot).
+- **Tag**: `v0.12.0` — "Window resize and drag with real-time repositioning, pixel buffer allocation tracking"
+
+## Files Requiring Careful Edits (additions)
+
+| File | Why |
+|---|---|
+| `kernel/gui.h` | `pixels_page_allocated` field must be properly initialized in any new window creation path. |
+
 ## Commit & Release Rules
 
 After every successful update that compiles and makes sense:

@@ -514,6 +514,8 @@ static void draw_window_content(gui_window_t* w)
     }
 }
 
+#define W7_GLASS_FRAME_W 4
+
 static void draw_window(int idx)
 {
     gui_window_t* w = &windows[idx];
@@ -521,28 +523,43 @@ static void draw_window(int idx)
     if (w->dragging) { w->x = w->drag_outline_x; w->y = w->drag_outline_y; }
 
     int active = (idx == active_window);
-    fb_fillrect(w->x + 1, w->y + GUI_TITLE_HEIGHT + 1, w->w - 2, w->h - GUI_TITLE_HEIGHT - 2, FB_RGB(0xF0, 0xF0, 0xF0));
+    uint8_t tint_alpha = W7_GLASS_TINT_ALPHA;
+    int x = w->x, y = w->y, ww = w->w, wh = w->h;
+    int gf = W7_GLASS_FRAME_W;
+
+    fb_fillrect(x + gf, y + GUI_TITLE_HEIGHT + gf, ww - gf * 2, wh - GUI_TITLE_HEIGHT - gf * 2, FB_RGB(0xF0, 0xF0, 0xF0));
     draw_aero_title_bar(w, active);
 
+    /* Draw glass frame on sides and bottom */
+    if (active)
+    {
+        uint32_t frame_col = FB_RGB(0x20, 0x60, 0xD0);
+        fb_fillrect_alpha(x, y + GUI_TITLE_HEIGHT + gf, ww, gf, frame_col, tint_alpha * 3 / 4);
+        fb_fillrect_alpha(x, y + GUI_TITLE_HEIGHT, gf, wh - GUI_TITLE_HEIGHT, frame_col, tint_alpha * 3 / 4);
+        fb_fillrect_alpha(x + ww - gf, y + GUI_TITLE_HEIGHT, gf, wh - GUI_TITLE_HEIGHT, frame_col, tint_alpha * 3 / 4);
+        fb_fillrect_alpha(x + gf, y + wh - gf, ww - gf * 2, gf, frame_col, tint_alpha * 3 / 4);
+    }
+
     uint32_t border = active ? COL_W7_AERO_BORDER : FB_RGB(0x90, 0x90, 0x90);
-    fb_draw_hline(w->y, w->x, w->x + w->w - 1, border);
-    fb_draw_vline(w->x, w->y, w->y + w->h - 1, border);
-    fb_draw_hline(w->y + w->h - 1, w->x, w->x + w->w - 1, border);
-    fb_draw_vline(w->x + w->w - 1, w->y, w->y + w->h - 1, border);
+    fb_draw_hline(y, x, x + ww - 1, border);
+    fb_draw_vline(x, y, y + wh - 1, border);
+    fb_draw_hline(y + wh - 1, x, x + ww - 1, border);
+    fb_draw_vline(x + ww - 1, y, y + wh - 1, border);
 
     draw_window_content(w);
 
     for (int b = 0; b < w->num_buttons; b++)
     {
         gui_button_t* btn = &w->buttons[b];
-        int bx = w->x + 1 + btn->x * FONT_WIDTH;
-        int by = w->y + GUI_TITLE_HEIGHT + 1 + btn->y * FONT_HEIGHT;
+        int bx = x + 1 + btn->x * FONT_WIDTH;
+        int by = y + GUI_TITLE_HEIGHT + 1 + btn->y * FONT_HEIGHT;
         int bw = btn->w * FONT_WIDTH;
         int bh = FONT_HEIGHT + 4;
         fb_fillrect(bx, by, bw, bh, FB_RGB(0xEC, 0xE9, 0xD8));
         fb_fillrect(bx + 1, by + 1, bw - 2, bh - 2, FB_RGB(0xEC, 0xE9, 0xD8));
         fb_drawstring(bx + 2, by + 2, btn->label, COL_BLACK, FB_RGB(0xEC, 0xE9, 0xD8));
     }
+
 }
 
 static void draw_mouse_cursor(void)
@@ -1555,8 +1572,15 @@ void gui_set_window_pos(int win_id, int x, int y)
 void gui_set_window_size(int win_id, int w, int h)
 {
     if (win_id < 0 || win_id >= num_windows) return;
+    if (w < 100) w = 100;
+    if (h < 60) h = 60;
     windows[win_id].w = w;
     windows[win_id].h = h;
+    windows[win_id].cw = (w - 2) / FONT_WIDTH;
+    windows[win_id].ch = (h - GUI_TITLE_HEIGHT - 3) / FONT_HEIGHT;
+    if (windows[win_id].cw < 1) windows[win_id].cw = 1;
+    if (windows[win_id].ch < 1) windows[win_id].ch = 1;
+    gui_ensure_pixels(win_id);
     mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
 }
 
