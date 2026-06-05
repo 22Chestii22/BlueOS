@@ -65,8 +65,6 @@ static uint32_t* backbuffer_alloc_pages(uint32_t size, int idx)
     return (uint32_t*)vaddr;
 }
 
-static uint32_t* desktop_bg = NULL;
-
 void fb_backbuffer_alloc(void)
 {
     if (backbuffers[0]) return;
@@ -95,49 +93,11 @@ void fb_backbuffer_alloc(void)
     current_buffer = 0;
     printf("[FB] Backbuffers: %d buffers, %d KB each\n",
            NUM_BACKBUFFERS, size / 1024);
-
-    /* Precompute desktop glass gradient */
-    if (!desktop_bg)
-    {
-        uint32_t bg_pitch = fb_info.width * 4;
-        desktop_bg = (uint32_t*)malloc(bg_pitch * fb_info.height);
-        if (!desktop_bg)
-            desktop_bg = backbuffer_alloc_pages(bg_pitch * fb_info.height, 2);
-        if (desktop_bg)
-        {
-            for (uint32_t row = 0; row < fb_info.height; row++)
-            {
-                uint8_t r = 0x0A + (uint32_t)(0x2A - 0x0A) * row / fb_info.height;
-                uint8_t g = 0x3A + (uint32_t)(0x6A - 0x3A) * row / fb_info.height;
-                uint8_t b = 0x70 + (uint32_t)(0xA0 - 0x70) * row / fb_info.height;
-                uint32_t color = FB_RGB(r, g, b);
-                uint32_t* row_ptr = &desktop_bg[row * fb_info.width];
-                for (uint32_t col = 0; col < fb_info.width; col++)
-                    row_ptr[col] = color;
-            }
-            printf("[FB] Desktop background precomputed (%d KB)\n",
-                   (fb_info.width * fb_info.height * 4) / 1024);
-        }
-    }
 }
 
 void fb_apply_desktop_bg(void)
 {
-    if (desktop_bg && backbuffer)
-    {
-        memcpy(backbuffer, desktop_bg, fb_info.height * fb_info.pitch);
-    }
-    else
-    {
-        uint32_t hh = fb_info.height;
-        for (uint32_t row = 0; row < hh; row++)
-        {
-            uint8_t r = 0x0A + (uint32_t)(0x2A - 0x0A) * row / hh;
-            uint8_t g = 0x3A + (uint32_t)(0x6A - 0x3A) * row / hh;
-            uint8_t b = 0x70 + (uint32_t)(0xA0 - 0x70) * row / hh;
-            fb_draw_hline((int)row, 0, (int)(fb_info.width - 1), FB_RGB(r, g, b));
-        }
-    }
+    fb_fillrect(0, 0, fb_info.width, fb_info.height, COL_XP_DESKTOP);
 }
 
 static void putpixel_raw(uint32_t x, uint32_t y, uint32_t color)
@@ -371,14 +331,11 @@ void fb_fillrect_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t 
 void fb_draw_glass_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha)
 {
     if (w < 2 || h < 2) return;
-    /* Glass effect: translucent fill with a glossy highlight at the top */
     fb_fillrect_alpha(x, y, w, h, color, alpha);
 
-    /* Glossy reflection line near top */
     uint32_t highlight = fb_blend(COL_WHITE, color, 80);
     fb_draw_hline(y + 1, x + 2, x + w - 3, highlight);
 
-    /* Subtle bottom shadow */
     uint32_t shadow = fb_blend(COL_BLACK, color, 40);
     fb_draw_hline(y + h - 1, x + 1, x + w - 2, shadow);
 }
@@ -410,7 +367,6 @@ void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow
                 if (px < 0 || (uint32_t)px >= fb_info.width) continue;
                 if (bits & (1 << (7 - col)))
                 {
-                    /* Draw glow box around each text pixel */
                     int gx_start = px - 1;
                     if (gx_start < 0) gx_start = 0;
                     int gy_start = py - 1;
@@ -428,7 +384,6 @@ void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow
         cx += FONT_WIDTH;
     }
 
-    /* Draw actual text on top using pixel-level rendering (no background) */
     cx = x; cy = y;
     for (int i = 0; str[i]; i++)
     {
@@ -484,175 +439,6 @@ static void fb_puts_raw(int x, int y, const char* s, uint32_t fg, uint32_t bg)
         fb_putchar_raw(x, y, s[i], fg, bg);
         x += FONT_WIDTH;
     }
-}
-
-void fb_blur_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
-{
-    if (!backbuffer) return;
-    if (w == 0 || h == 0 || radius <= 0) return;
-    if (x >= fb_info.width || y >= fb_info.height) return;
-    if (x + w > fb_info.width) w = fb_info.width - x;
-    if (y + h > fb_info.height) h = fb_info.height - y;
-
-    uint32_t stride = fb_info.pitch / 4;
-    int r = radius > 8 ? 8 : radius;
-    uint32_t* tmp = malloc(w * h * 4);
-    if (!tmp) return;
-
-    for (uint32_t row = 0; row < h; row++)
-    {
-        for (uint32_t col = 0; col < w; col++)
-        {
-            uint32_t rt = 0, gt = 0, bt = 0, cnt = 0;
-            int y0 = (int)(y + row) - r;
-            int y1 = (int)(y + row) + r;
-            for (int ky = y0; ky <= y1; ky++)
-            {
-                if (ky < 0 || (uint32_t)ky >= fb_info.height) continue;
-                uint32_t* src_line = &backbuffer[(uint32_t)ky * stride];
-                int x0 = (int)(x + col) - r;
-                int x1 = (int)(x + col) + r;
-                for (int kx = x0; kx <= x1; kx++)
-                {
-                    if (kx < 0 || (uint32_t)kx >= fb_info.width) continue;
-                    uint32_t c = src_line[kx];
-                    rt += FB_GET_R(c);
-                    gt += FB_GET_G(c);
-                    bt += FB_GET_B(c);
-                    cnt++;
-                }
-            }
-            if (cnt == 0) cnt = 1;
-            tmp[row * w + col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
-        }
-    }
-
-    for (uint32_t row = 0; row < h; row++)
-        for (uint32_t col = 0; col < w; col++)
-            backbuffer[(y + row) * stride + x + col] = tmp[row * w + col];
-
-    free(tmp);
-}
-
-void fb_blur_rect_separable(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
-{
-    if (!backbuffer) return;
-    if (w == 0 || h == 0 || radius <= 0) return;
-    if (x >= fb_info.width || y >= fb_info.height) return;
-    if (x + w > fb_info.width) w = fb_info.width - x;
-    if (y + h > fb_info.height) h = fb_info.height - y;
-
-    uint32_t stride = fb_info.pitch / 4;
-    int r = radius > 10 ? 10 : radius;
-
-    uint32_t* tmp = malloc(w * h * 4);
-    if (!tmp) return;
-
-    /* Pass 1: horizontal blur */
-    for (uint32_t row = 0; row < h; row++)
-    {
-        uint32_t* src_line = &backbuffer[(y + row) * stride];
-        uint32_t* dst_line = &tmp[row * w];
-
-        /* Initialize sliding window for first pixel */
-        uint32_t rt = 0, gt = 0, bt = 0;
-        int cnt = 0;
-        int kx_start = (int)(x) - r;
-        if (kx_start < 0) kx_start = 0;
-        for (int kx = kx_start; kx < (int)(x) + r + 1; kx++)
-        {
-            if ((uint32_t)kx >= fb_info.width) break;
-            uint32_t c = src_line[kx];
-            rt += FB_GET_R(c);
-            gt += FB_GET_G(c);
-            bt += FB_GET_B(c);
-            cnt++;
-        }
-        if (cnt == 0) cnt = 1;
-        dst_line[0] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
-
-        /* Slide window across row */
-        for (uint32_t col = 1; col < w; col++)
-        {
-            int cx = (int)(x + col);
-            /* Subtract leftmost pixel leaving window */
-            int left_kx = cx - r - 1;
-            if (left_kx >= 0 && (uint32_t)left_kx < fb_info.width)
-            {
-                uint32_t c = src_line[left_kx];
-                rt -= FB_GET_R(c);
-                gt -= FB_GET_G(c);
-                bt -= FB_GET_B(c);
-                cnt--;
-            }
-            /* Add rightmost pixel entering window */
-            int right_kx = cx + r;
-            if (right_kx >= 0 && (uint32_t)right_kx < fb_info.width)
-            {
-                uint32_t c = src_line[right_kx];
-                rt += FB_GET_R(c);
-                gt += FB_GET_G(c);
-                bt += FB_GET_B(c);
-                cnt++;
-            }
-            if (cnt == 0) cnt = 1;
-            dst_line[col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
-        }
-    }
-
-    /* Pass 2: vertical blur into backbuffer */
-    for (uint32_t row = 0; row < h; row++)
-    {
-        uint32_t* dst_line = &backbuffer[(y + row) * stride + x];
-        for (uint32_t col = 0; col < w; col++)
-        {
-            uint32_t rt = 0, gt = 0, bt = 0, cnt = 0;
-            int ky_start = (int)(y + row) - r;
-            if (ky_start < (int)y) ky_start = y;
-            int ky_end = (int)(y + row) + r;
-            if (ky_end >= (int)(y + h)) ky_end = (int)(y + h) - 1;
-            for (int ky = ky_start; ky <= ky_end; ky++)
-            {
-                uint32_t c = tmp[(uint32_t)(ky - y) * w + col];
-                rt += FB_GET_R(c);
-                gt += FB_GET_G(c);
-                bt += FB_GET_B(c);
-                cnt++;
-            }
-            if (cnt == 0) cnt = 1;
-            dst_line[col] = FB_RGB((uint8_t)(rt / cnt), (uint8_t)(gt / cnt), (uint8_t)(bt / cnt));
-        }
-    }
-
-    free(tmp);
-}
-
-void fb_blur_rect_fast(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int radius)
-{
-    fb_blur_rect_separable(x, y, w, h, radius);
-}
-
-void fb_dwm_glass(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
-                  uint32_t tint_color, uint8_t tint_alpha, int blur_radius)
-{
-    if (blur_radius > 0)
-        fb_blur_rect_fast(x, y, w, h, blur_radius);
-    fb_fillrect_alpha(x, y, w, h, tint_color, tint_alpha);
-}
-
-void fb_dwm_glass_glossy(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
-                         uint32_t tint_color, uint8_t tint_alpha, int blur_radius)
-{
-    fb_dwm_glass(x, y, w, h, tint_color, tint_alpha, blur_radius);
-
-    uint32_t gloss = fb_blend(COL_WHITE, tint_color, 180);
-    for (uint32_t row = 0; row < h / 2; row++)
-    {
-        uint8_t ga = 30 + (uint32_t)(60 - 30) * row / (h / 2);
-        fb_fillrect_alpha(x, y + row, w, 1, gloss, ga);
-    }
-    uint32_t shadow = fb_blend(COL_BLACK, tint_color, 60);
-    fb_fillrect_alpha(x, y + h - 1, w, 1, shadow, 120);
 }
 
 void fb_save_region(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t* buf)

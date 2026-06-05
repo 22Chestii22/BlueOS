@@ -30,7 +30,6 @@ static int screen_dirty_x = 0, screen_dirty_y = 0;
 static int screen_dirty_w = 0, screen_dirty_h = 0;
 
 #define GUI_PIXEL_VADDR_BASE 0x3000000
-#define W7_GLASS_FRAME_W 4
 
 static void mark_screen_dirty(int x, int y, int w, int h)
 {
@@ -200,72 +199,21 @@ static void draw_desktop_icons(void)
     }
 }
 
-static void draw_orb_button(int x, int y, int size, int hovered)
-{
-    int radius = size / 2;
-    int cx = x + radius;
-    int cy = y + radius;
-    int r2 = radius * radius;
-    for (int row = 0; row < size; row++)
-    {
-        for (int col = 0; col < size; col++)
-        {
-            int dx = col - radius;
-            int dy = row - radius;
-            int dist2 = dx * dx + dy * dy;
-            if (dist2 <= r2)
-            {
-                uint32_t col_r, col_g, col_b;
-                if (dist2 < (radius * radius / 4))
-                {
-                    col_r = hovered ? 0xA0 : 0x80;
-                    col_g = hovered ? 0xE8 : 0xD0;
-                    col_b = hovered ? 0x50 : 0x30;
-                }
-                else if (dist2 < (radius * radius * 3 / 4))
-                {
-                    col_r = hovered ? 0x70 : 0x50;
-                    col_g = hovered ? 0xD0 : 0xB0;
-                    col_b = hovered ? 0x30 : 0x18;
-                }
-                else
-                {
-                    col_r = hovered ? 0x50 : 0x30;
-                    col_g = hovered ? 0xA0 : 0x80;
-                    col_b = hovered ? 0x20 : 0x10;
-                }
-                fb_putpixel(cx + dx, cy + dy, FB_RGB(col_r, col_g, col_b));
-            }
-            else if (hovered && dist2 <= r2 + 4)
-            {
-                int glow = 80 - (dist2 - r2) * 15;
-                if (glow > 0)
-                    fb_putpixel(cx + dx, cy + dy, FB_RGB(0x50, glow > 100 ? 0xC0 : 0x80, 0x20));
-            }
-        }
-    }
-    fb_fillrect(cx - 4, cy - 3, 4, 3, FB_RGB(0xFF, 0xCC, 0x00));
-    fb_fillrect(cx, cy - 3, 4, 3, FB_RGB(0xE0, 0x40, 0x30));
-    fb_fillrect(cx - 4, cy, 4, 3, FB_RGB(0x30, 0xA0, 0x30));
-    fb_fillrect(cx, cy, 4, 3, FB_RGB(0x30, 0x70, 0xD0));
-}
-
-static void draw_desktop_glass(void)
+static void draw_desktop(void)
 {
     fb_apply_desktop_bg();
 }
 
 static void draw_window_shadow(gui_window_t* w)
 {
-    int s = 6;
+    int s = 4;
     int x = w->x, y = w->y, ww = w->w, wh = w->h;
     for (int i = 1; i <= s; i++)
     {
-        uint8_t a = 50 - (uint32_t)(i * 45) / s;
-        fb_fillrect_alpha(x - i, y + i, i, wh - i * 2, COL_BLACK, a);
-        fb_fillrect_alpha(x + ww, y + i, i, wh - i * 2, COL_BLACK, a);
-        fb_fillrect_alpha(x - i + s/2, y - i, ww + i * 2 - s, i, COL_BLACK, a);
-        fb_fillrect_alpha(x - i + s/2, y + wh, ww + i * 2 - s, i, COL_BLACK, a);
+        uint8_t a = 40 - (uint32_t)(i * 35) / s;
+        fb_fillrect_alpha(x + ww, y + i, i, wh - i, COL_BLACK, a);
+        fb_fillrect_alpha(x + i, y + wh, ww - i, i, COL_BLACK, a);
+        fb_fillrect_alpha(x + ww, y + wh, i, i, COL_BLACK, a);
     }
 }
 
@@ -277,81 +225,86 @@ static void fb_draw_rect_outline(int x, int y, int w, int h, uint32_t color)
     fb_draw_vline(x + w - 1, y, y + h - 1, color);
 }
 
-static void draw_aero_title_bar(gui_window_t* w, int active)
+static void draw_xp_title_text(int x, int y, const char* str, uint32_t fg, uint32_t shadow)
+{
+    int cx;
+    if (shadow)
+    {
+        cx = x + 1;
+        for (int i = 0; str[i]; i++)
+        {
+            int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
+            if (ci < 0 || ci >= FONT_NUM_CHARS) { cx += FONT_WIDTH; continue; }
+            for (int row = 0; row < FONT_HEIGHT; row++)
+            {
+                unsigned char bits = font_data[ci][row];
+                for (int col = 0; col < FONT_WIDTH; col++)
+                {
+                    int px = cx + col, py = y + 1 + row;
+                    if (px >= 0 && (uint32_t)px < fb_info.width && py >= 0 && (uint32_t)py < fb_info.height)
+                        if (bits & (1 << (7 - col)))
+                            fb_putpixel(px, py, shadow);
+                }
+            }
+            cx += FONT_WIDTH;
+        }
+    }
+    cx = x;
+    for (int i = 0; str[i]; i++)
+    {
+        int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
+        if (ci < 0 || ci >= FONT_NUM_CHARS) { cx += FONT_WIDTH; continue; }
+        for (int row = 0; row < FONT_HEIGHT; row++)
+        {
+            unsigned char bits = font_data[ci][row];
+            for (int col = 0; col < FONT_WIDTH; col++)
+            {
+                int px = cx + col, py = y + row;
+                if (px >= 0 && (uint32_t)px < fb_info.width && py >= 0 && (uint32_t)py < fb_info.height)
+                    if (bits & (1 << (7 - col)))
+                        fb_putpixel(px, py, fg);
+            }
+        }
+        cx += FONT_WIDTH;
+    }
+}
+
+static void draw_xp_title_bar(gui_window_t* w, int active)
 {
     int x = w->x, y = w->y, tw = w->w;
-    int glass_h = GUI_TITLE_HEIGHT;
-    uint32_t tint_color;
-    uint8_t tint_alpha = W7_GLASS_TINT_ALPHA;
+    int title_h = GUI_TITLE_HEIGHT;
 
-    /* Save background behind title bar for blur */
-    if (active)
+    for (int row = 0; row < title_h - 1; row++)
     {
-        uint32_t need = (uint32_t)(tw * glass_h * 4);
-        if (!w->blur_cache || w->blur_cache_w < tw)
+        uint32_t color;
+        if (active)
         {
-            if (w->blur_cache) free(w->blur_cache);
-            w->blur_cache = malloc(need);
-            w->blur_cache_w = tw;
+            uint8_t r = ((COL_XP_TITLE_TOP >> 16) & 0xFF) +
+                (((uint32_t)(((COL_XP_TITLE_BOTTOM >> 16) & 0xFF) - ((COL_XP_TITLE_TOP >> 16) & 0xFF))) * row / (title_h - 2));
+            uint8_t g = ((COL_XP_TITLE_TOP >> 8) & 0xFF) +
+                (((uint32_t)(((COL_XP_TITLE_BOTTOM >> 8) & 0xFF) - ((COL_XP_TITLE_TOP >> 8) & 0xFF))) * row / (title_h - 2));
+            uint8_t b = (COL_XP_TITLE_TOP & 0xFF) +
+                (((uint32_t)((COL_XP_TITLE_BOTTOM & 0xFF) - (COL_XP_TITLE_TOP & 0xFF))) * row / (title_h - 2));
+            color = FB_RGB(r, g, b);
         }
-        if (w->blur_cache)
+        else
         {
-            fb_save_region((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, w->blur_cache);
-            fb_blur_rect_fast((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, W7_GLASS_BLUR_RADIUS);
+            uint8_t r = ((COL_XP_TITLE_INACT_TOP >> 16) & 0xFF) +
+                (((uint32_t)(((COL_XP_TITLE_INACT_BOTTOM >> 16) & 0xFF) - ((COL_XP_TITLE_INACT_TOP >> 16) & 0xFF))) * row / (title_h - 2));
+            uint8_t g = ((COL_XP_TITLE_INACT_TOP >> 8) & 0xFF) +
+                (((uint32_t)(((COL_XP_TITLE_INACT_BOTTOM >> 8) & 0xFF) - ((COL_XP_TITLE_INACT_TOP >> 8) & 0xFF))) * row / (title_h - 2));
+            uint8_t b = (COL_XP_TITLE_INACT_TOP & 0xFF) +
+                (((uint32_t)((COL_XP_TITLE_INACT_BOTTOM & 0xFF) - (COL_XP_TITLE_INACT_TOP & 0xFF))) * row / (title_h - 2));
+            color = FB_RGB(r, g, b);
         }
+        fb_draw_hline(y + row, x, x + tw - 1, color);
     }
 
-    if (active)
-        tint_color = FB_RGB(0x10, 0x50, 0xCC);
-    else
-        tint_color = FB_RGB(0x40, 0x40, 0x40);
+    fb_draw_hline(y + title_h - 1, x, x + tw - 1, active ? COL_XP_TITLE_BORDER : FB_RGB(0x90, 0x90, 0x90));
 
-    fb_fillrect_alpha((uint32_t)x, (uint32_t)y, (uint32_t)tw, (uint32_t)glass_h, tint_color, tint_alpha);
-
-    /* Glossy reflection at top */
-    for (int col = 2; col < tw - 2; col++)
-    {
-        uint32_t bg = fb_getpixel((uint32_t)(x + col), (uint32_t)(y + 1));
-        fb_putpixel((uint32_t)(x + col), (uint32_t)(y + 1), fb_blend(COL_WHITE, bg, 100));
-        if (col > 4 && col < tw - 4)
-        {
-            bg = fb_getpixel((uint32_t)(x + col), (uint32_t)(y + 2));
-            fb_putpixel((uint32_t)(x + col), (uint32_t)(y + 2), fb_blend(COL_WHITE, bg, 50));
-        }
-    }
-
-    /* Active window border glow */
-    if (active)
-    {
-        for (int off = -2; off <= 2; off++)
-        {
-            if (off == 0) continue;
-            int gx = x + off;
-            if (gx < 0 || (uint32_t)gx >= fb_info.width) continue;
-            uint8_t ga = 60 - (uint32_t)(off < 0 ? -off : off) * 20;
-            uint32_t glow = fb_blend(COL_W7_AERO_GLOW_ACT, tint_color, ga);
-            fb_draw_vline(gx, y, y + glass_h - 1, glow);
-        }
-        fb_draw_vline(x - 1, y, y + glass_h - 1, FB_RGB(0x00, 0x40, 0x80));
-        fb_draw_vline(x + tw, y, y + glass_h - 1, FB_RGB(0x00, 0x40, 0x80));
-    }
-
-    /* Bottom border */
-    fb_draw_hline(y + glass_h - 1, x, x + tw - 1, active ? FB_RGB(0x00, 0x30, 0x70) : FB_RGB(0x90, 0x90, 0x90));
-    if (active)
-        fb_draw_hline(y + glass_h - 2, x + 1, x + tw - 2, FB_RGB(0x40, 0x70, 0xB0));
-
-    /* Title text with glow for active */
-    int tx = x + 8;
-    if (active)
-        fb_draw_glow_text(tx, y + 4, w->title, COL_WHITE, COL_W7_AERO_GLOW);
-    else
-        fb_drawstring(tx, y + 4, w->title, FB_RGB(0x60, 0x60, 0x60), 0);
-
-    /* Capture button hover states from mouse */
     int mmx = mouse_get_x_wrapper();
     int mmy = mouse_get_y_wrapper();
-    int cap_y = y + (glass_h - 16) / 2;
+    int cap_y = y + (title_h - 16) / 2;
     int btn_gap = 2;
     int btn_size = 16;
 
@@ -366,39 +319,48 @@ static void draw_aero_title_bar(gui_window_t* w, int active)
     w->btn_min_hover = (mmx >= min_x && mmx < min_x + btn_size &&
                         mmy >= cap_y && mmy < cap_y + btn_size) && active;
 
-    /* Close button */
-    uint32_t close_bg = w->btn_close_hover ? COL_W7_AERO_CLOSE_HOV : COL_W7_AERO_CLOSE;
-    fb_fillrect(close_x, cap_y, btn_size, btn_size, close_bg);
-    fb_fillrect(close_x + 3, cap_y + 3, btn_size - 6, btn_size - 6, FB_RGB(0xC0, 0x20, 0x20));
-    fb_drawstring(close_x + 4, cap_y + 1, "X", COL_WHITE, FB_RGB(0xC0, 0x20, 0x20));
-    if (w->btn_close_hover)
-        fb_draw_hline(cap_y, close_x + 2, close_x + btn_size - 3, COL_WHITE);
-    else
-        fb_draw_hline(cap_y, close_x + 2, close_x + btn_size - 3, FB_RGB(0xFF, 0x80, 0x80));
-
-    /* Maximize button */
-    if (!w->minimized)
+    if (active)
     {
-        uint32_t max_bg = w->btn_max_hover ? FB_RGB(0xE0, 0xE8, 0xF0) : FB_RGB(0xD0, 0xD8, 0xE8);
-        fb_fillrect_alpha(max_x, cap_y, btn_size, btn_size, active ? max_bg : FB_RGB(0xC0, 0xC0, 0xC0), 180);
-        int m2 = w->maximized ? 6 : 3;
-        fb_draw_rect_outline(max_x + m2, cap_y + 3, 8, 7, FB_RGB(0x40, 0x40, 0x40));
-        if (!w->maximized)
-            fb_draw_rect_outline(max_x + 3, cap_y + 5, 8, 7, FB_RGB(0x60, 0x60, 0x60));
+        uint32_t tx = x + 8;
+        draw_xp_title_text(tx, y + 4, w->title, COL_XP_TITLE_TEXT, FB_RGB(0x00, 0x33, 0x99));
+
+        /* Close button */
+        uint32_t close_bg = w->btn_close_hover ? COL_XP_BTN_CLOSE_HOV : COL_XP_BTN_CLOSE;
+        fb_fillrect(close_x, cap_y, btn_size, btn_size, close_bg);
+        if (!w->btn_close_hover)
+            fb_draw_rect_outline(close_x, cap_y, btn_size, btn_size, FB_RGB(0xC0, 0x60, 0x60));
+        draw_xp_title_text(close_x + 4, cap_y + 1, "X", COL_WHITE, 0);
+
+        /* Maximize button */
+        if (!w->minimized)
+        {
+            uint32_t max_bg = w->btn_max_hover ? FB_RGB(0xE8, 0xF0, 0xFF) : FB_RGB(0xD0, 0xD8, 0xE8);
+            fb_fillrect(max_x, cap_y, btn_size, btn_size, max_bg);
+            fb_draw_rect_outline(max_x, cap_y, btn_size, btn_size, FB_RGB(0x80, 0x90, 0xB0));
+            int m2 = w->maximized ? 6 : 3;
+            fb_draw_rect_outline(max_x + m2, cap_y + 3, 8, 7, FB_RGB(0x40, 0x40, 0x40));
+            if (!w->maximized)
+                fb_draw_rect_outline(max_x + 3, cap_y + 5, 8, 7, FB_RGB(0x60, 0x60, 0x60));
+        }
+
+        /* Minimize button */
+        if (!w->minimized)
+        {
+            uint32_t min_bg = w->btn_min_hover ? FB_RGB(0xE8, 0xF0, 0xFF) : FB_RGB(0xD0, 0xD8, 0xE8);
+            fb_fillrect(min_x, cap_y, btn_size, btn_size, min_bg);
+            fb_draw_rect_outline(min_x, cap_y, btn_size, btn_size, FB_RGB(0x80, 0x90, 0xB0));
+            fb_draw_hline(cap_y + 12, min_x + 4, min_x + 11, FB_RGB(0x30, 0x30, 0x30));
+        }
     }
-
-    /* Minimize button */
-    if (!w->minimized)
+    else
     {
-        uint32_t min_bg = w->btn_min_hover ? FB_RGB(0xE0, 0xE8, 0xF0) : FB_RGB(0xD0, 0xD8, 0xE8);
-        fb_fillrect_alpha(min_x, cap_y, btn_size, btn_size, active ? min_bg : FB_RGB(0xC0, 0xC0, 0xC0), 180);
-        fb_draw_hline(cap_y + 12, min_x + 4, min_x + 11, COL_W7_AERO_MIN);
+        draw_xp_title_text(x + 8, y + 4, w->title, COL_XP_TITLE_INACT_TEXT, 0);
     }
 }
 
 static void draw_window_content(gui_window_t* w)
 {
-    int gf = W7_GLASS_FRAME_W;
+    int gf = XP_BORDER_W;
     int cx = w->x + gf;
     int cy = w->y + GUI_TITLE_HEIGHT + gf;
     int cw = w->w - gf * 2;
@@ -525,42 +487,35 @@ static void draw_window(int idx)
     if (w->dragging) { w->x = w->drag_outline_x; w->y = w->drag_outline_y; }
 
     int active = (idx == active_window);
-    uint8_t tint_alpha = W7_GLASS_TINT_ALPHA;
     int x = w->x, y = w->y, ww = w->w, wh = w->h;
-    int gf = W7_GLASS_FRAME_W;
+    int gf = XP_BORDER_W;
 
-    fb_fillrect(x + gf, y + GUI_TITLE_HEIGHT + gf, ww - gf * 2, wh - GUI_TITLE_HEIGHT - gf * 2, FB_RGB(0xF0, 0xF0, 0xF0));
-    draw_aero_title_bar(w, active);
+    int cx = x + gf;
+    int cy = y + GUI_TITLE_HEIGHT + gf;
+    int cw = ww - gf * 2;
+    int ch = wh - GUI_TITLE_HEIGHT - gf * 2;
 
-    /* Draw glass frame on sides and bottom */
-    if (active)
-    {
-        uint32_t frame_col = FB_RGB(0x20, 0x60, 0xD0);
-        fb_fillrect_alpha(x, y + GUI_TITLE_HEIGHT, gf, wh - GUI_TITLE_HEIGHT, frame_col, tint_alpha * 3 / 4);
-        fb_fillrect_alpha(x + ww - gf, y + GUI_TITLE_HEIGHT, gf, wh - GUI_TITLE_HEIGHT, frame_col, tint_alpha * 3 / 4);
-        fb_fillrect_alpha(x + gf, y + wh - gf, ww - gf * 2, gf, frame_col, tint_alpha * 3 / 4);
-    }
+    fb_fillrect(cx, cy, cw, ch, FB_RGB(0xF0, 0xF0, 0xF0));
+    draw_xp_title_bar(w, active);
 
-    uint32_t border = active ? COL_W7_AERO_BORDER : FB_RGB(0x90, 0x90, 0x90);
-    fb_draw_hline(y, x, x + ww - 1, border);
-    fb_draw_vline(x, y, y + wh - 1, border);
-    fb_draw_hline(y + wh - 1, x, x + ww - 1, border);
-    fb_draw_vline(x + ww - 1, y, y + wh - 1, border);
+    uint32_t border = active ? COL_XP_WINDOW_BORDER_ACTIVE : COL_XP_WINDOW_BORDER_INACT;
+    fb_draw_rect_outline(x, y, ww, wh, border);
 
     draw_window_content(w);
 
     for (int b = 0; b < w->num_buttons; b++)
     {
         gui_button_t* btn = &w->buttons[b];
-        int bx = x + W7_GLASS_FRAME_W + btn->x * FONT_WIDTH;
-        int by = y + GUI_TITLE_HEIGHT + W7_GLASS_FRAME_W + btn->y * FONT_HEIGHT;
+        int bx = x + XP_BORDER_W + btn->x * FONT_WIDTH;
+        int by = y + GUI_TITLE_HEIGHT + XP_BORDER_W + btn->y * FONT_HEIGHT;
         int bw = btn->w * FONT_WIDTH;
         int bh = FONT_HEIGHT + 4;
-        fb_fillrect(bx, by, bw, bh, FB_RGB(0xEC, 0xE9, 0xD8));
-        fb_fillrect(bx + 1, by + 1, bw - 2, bh - 2, FB_RGB(0xEC, 0xE9, 0xD8));
-        fb_drawstring(bx + 2, by + 2, btn->label, COL_BLACK, FB_RGB(0xEC, 0xE9, 0xD8));
-    }
 
+        fb_fillrect(bx, by, bw, bh, COL_XP_BTN_FACE);
+        fb_draw_rect_outline(bx, by, bw, bh, COL_XP_BTN_BORDER);
+        fb_fillrect(bx + 1, by + 1, bw - 2, bh - 2, COL_XP_BTN_FACE);
+        fb_drawstring(bx + 2, by + 2, btn->label, COL_BLACK, COL_XP_BTN_FACE);
+    }
 }
 
 static void draw_mouse_cursor(void)
@@ -612,24 +567,54 @@ static void draw_mouse_cursor(void)
     }
 }
 
+static void draw_start_button(int x, int y, int w, int h, int hovered)
+{
+    uint32_t top = hovered ? FB_RGB(0x50, 0xC0, 0x10) : COL_XP_START_GREEN;
+    uint32_t bottom = hovered ? FB_RGB(0x30, 0x80, 0x00) : FB_RGB(0x28, 0x70, 0x00);
+    for (int row = 0; row < h; row++)
+    {
+        uint8_t r = ((top >> 16) & 0xFF) +
+            (((uint32_t)(((bottom >> 16) & 0xFF) - ((top >> 16) & 0xFF))) * row / (h - 1 < 1 ? 1 : h - 1));
+        uint8_t g = ((top >> 8) & 0xFF) +
+            (((uint32_t)(((bottom >> 8) & 0xFF) - ((top >> 8) & 0xFF))) * row / (h - 1 < 1 ? 1 : h - 1));
+        uint8_t b = (top & 0xFF) +
+            (((uint32_t)((bottom & 0xFF) - (top & 0xFF))) * row / (h - 1 < 1 ? 1 : h - 1));
+        fb_draw_hline(y + row, x, x + w - 1, FB_RGB(r, g, b));
+    }
+    fb_draw_rect_outline(x, y, w, h, FB_RGB(0x20, 0x60, 0x00));
+    if (hovered)
+    {
+        fb_draw_hline(y + 1, x + 1, x + w - 2, FB_RGB(0x60, 0xD0, 0x20));
+    }
+    int text_x = x + (w - (int)strlen("Start") * FONT_WIDTH) / 2;
+    draw_xp_title_text(text_x, y + (h - FONT_HEIGHT) / 2 + 1, "Start", COL_WHITE, 0);
+}
+
 static void draw_start_menu(void)
 {
     if (!start_menu_open) return;
 
-    int tby = fb_info.height - W7_TASKBAR_H;
+    int tby = fb_info.height - XP_TASKBAR_H;
     int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
-    int total_h = W7_SM_HEADER_H + max_items * W7_SM_ITEM_H + W7_SM_SEARCH_H + W7_SM_BOTTOM_H;
+    int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
     int mx = 2;
     int my = tby - total_h;
 
-    fb_dwm_glass_glossy(mx, my, W7_SM_TOTAL_W, total_h, FB_RGB(0xF5, 0xF5, 0xF5), 220, 6);
+    fb_fillrect(mx, my, XP_SM_TOTAL_W + 4, total_h + 2, FB_RGB(0xE0, 0xE0, 0xE0));
+    fb_draw_rect_outline(mx, my, XP_SM_TOTAL_W + 4, total_h + 2, FB_RGB(0x80, 0x80, 0x80));
 
+    /* Header */
     int hx = mx + 2, hy = my + 2;
-    int hw = W7_SM_TOTAL_W - 4, hh = W7_SM_HEADER_H - 2;
+    int hw = XP_SM_TOTAL_W, hh = XP_SM_HEADER_H;
     for (int row = 0; row < hh; row++)
     {
-        uint8_t v = 0xF0 + (uint32_t)(0xFA - 0xF0) * row / hh;
-        fb_draw_hline(hy + row, hx, hx + hw - 1, FB_RGB(v, v, v));
+        uint8_t r = ((COL_XP_SM_HEADER >> 16) & 0xFF) +
+            (((uint32_t)(((COL_XP_SM_HEADER2 >> 16) & 0xFF) - ((COL_XP_SM_HEADER >> 16) & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
+        uint8_t g = ((COL_XP_SM_HEADER >> 8) & 0xFF) +
+            (((uint32_t)(((COL_XP_SM_HEADER2 >> 8) & 0xFF) - ((COL_XP_SM_HEADER >> 8) & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
+        uint8_t b = (COL_XP_SM_HEADER & 0xFF) +
+            (((uint32_t)((COL_XP_SM_HEADER2 & 0xFF) - (COL_XP_SM_HEADER & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
+        fb_draw_hline(hy + row, hx, hx + hw - 1, FB_RGB(r, g, b));
     }
     int icon_x = hx + 8, icon_y = hy + (hh - 32) / 2;
     fb_fillrect(icon_x, icon_y, 32, 32, FB_RGB(0xD0, 0xD0, 0xD0));
@@ -644,89 +629,100 @@ static void draw_start_menu(void)
                 fb_putpixel(icon_x + col, icon_y + row, FB_RGB(v, v, v));
             }
         }
-    fb_drawstring(icon_x + 11, icon_y + 10, "U", FB_RGB(0x80, 0x80, 0x80), 0);
-    fb_drawstring(icon_x + 40, hy + 8, "Default User", COL_BLACK, FB_RGB(0xF5, 0xF5, 0xF5));
-    fb_draw_hline(hy + hh, hx, hx + hw - 1, FB_RGB(0xC0, 0xC0, 0xC0));
+    draw_xp_title_text(icon_x + 11, icon_y + 10, "U", FB_RGB(0x80, 0x80, 0x80), 0);
+    draw_xp_title_text(icon_x + 40, hy + 8, "Default User", COL_XP_SM_USER_TEXT, 0);
 
-    int left_x = mx + 2;
-    int left_y = my + W7_SM_HEADER_H;
-    int left_w = W7_SM_LEFT_W;
+    /* Left column */
+    int left_x = hx;
+    int left_y = hy + hh;
+    int left_w = XP_SM_LEFT_W;
+    int right_x = left_x + left_w + 2;
+    int right_w = XP_SM_RIGHT_W - 4;
+
+    fb_fillrect(left_x, left_y, left_w, max_items * XP_SM_ITEM_H, COL_XP_SM_LEFT_BG);
+    fb_fillrect(right_x - 2, left_y, right_w + 4, max_items * XP_SM_ITEM_H, COL_XP_SM_RIGHT_BG);
+
     for (int i = 0; i < start_left_count; i++)
     {
-        int iy = left_y + i * W7_SM_ITEM_H;
-        uint32_t bg = (start_menu_hovered == i) ? FB_RGB(0xCC, 0xE0, 0xF5) : FB_RGB(0xF8, 0xF8, 0xF8);
-        fb_fillrect(left_x, iy, left_w, W7_SM_ITEM_H, bg);
-        fb_fillrect(left_x + 4, iy + 5, 14, 14, FB_RGB(0x30, 0x80, 0xD0));
+        int iy = left_y + i * XP_SM_ITEM_H;
+        uint32_t bg = (start_menu_hovered == i) ? COL_XP_HIGHLIGHT : COL_XP_SM_LEFT_BG;
+        uint32_t fg = (start_menu_hovered == i) ? COL_WHITE : COL_BLACK;
+        fb_fillrect(left_x, iy, left_w, XP_SM_ITEM_H, bg);
+        fb_fillrect(left_x + 4, iy + 5, 16, 16, FB_RGB(0x30, 0x80, 0xD0));
         char icon_char = start_left_items[i][0];
-        fb_drawstring(left_x + 7, iy + 4, &icon_char, COL_WHITE, FB_RGB(0x30, 0x80, 0xD0));
-        fb_drawstring(left_x + 24, iy + 4, start_left_items[i], COL_BLACK, bg);
+        draw_xp_title_text(left_x + 7, iy + 5, &icon_char, COL_WHITE, 0);
+        fb_drawstring(left_x + 26, iy + 5, start_left_items[i], fg, bg);
     }
-
-    int sep_y = left_y + start_left_count * W7_SM_ITEM_H;
-    fb_draw_hline(sep_y - 1, left_x + 6, left_x + left_w - 6, FB_RGB(0xC0, 0xC0, 0xC0));
-
-    int all_y = sep_y;
-    uint32_t all_bg = (start_menu_hovered == start_left_count) ? FB_RGB(0xCC, 0xE0, 0xF5) : FB_RGB(0xF8, 0xF8, 0xF8);
-    fb_fillrect(left_x, all_y, left_w, W7_SM_ITEM_H, all_bg);
-    fb_drawstring(left_x + 24, all_y + 4, "All Programs",
-                  (start_menu_hovered == start_left_count) ? COL_WHITE : FB_RGB(0x00, 0x60, 0xCC), all_bg);
 
     int sep_x = left_x + left_w;
-    fb_draw_vline(sep_x, left_y, left_y + max_items * W7_SM_ITEM_H - 1, FB_RGB(0xC0, 0xC0, 0xC0));
+    fb_draw_vline(sep_x, left_y, left_y + max_items * XP_SM_ITEM_H - 1, FB_RGB(0xC0, 0xC0, 0xC0));
 
-    int right_x = sep_x + 2;
-    int right_w = W7_SM_RIGHT_W - 4;
     for (int i = 0; i < start_right_count; i++)
     {
-        int iy = left_y + i * W7_SM_ITEM_H;
+        int iy = left_y + i * XP_SM_ITEM_H;
         if (i == 2)
-            fb_draw_hline(iy - 1, right_x + 4, right_x + right_w - 4, FB_RGB(0xC0, 0xC0, 0xC0));
+            fb_draw_hline(iy - 1, right_x, right_x + right_w - 1, FB_RGB(0xC0, 0xC0, 0xC0));
         int adj_idx = start_left_count + 1 + i;
-        uint32_t bg = (start_menu_hovered == adj_idx) ? FB_RGB(0x99, 0xC4, 0xEA) : FB_RGB(0xE8, 0xEE, 0xF4);
+        uint32_t bg = (start_menu_hovered == adj_idx) ? COL_XP_HIGHLIGHT : COL_XP_SM_RIGHT_BG;
         uint32_t fg = (start_menu_hovered == adj_idx) ? COL_WHITE : COL_BLACK;
-        fb_fillrect(right_x, iy, right_w, W7_SM_ITEM_H, bg);
-        fb_drawstring(right_x + 6, iy + 4, start_right_items[i], fg, bg);
+        fb_fillrect(right_x, iy, right_w, XP_SM_ITEM_H, bg);
+        fb_drawstring(right_x + 6, iy + 5, start_right_items[i], fg, bg);
     }
 
-    int right_bottom = left_y + max_items * W7_SM_ITEM_H;
-    fb_draw_hline(right_bottom, mx + 2, mx + W7_SM_TOTAL_W - 3, FB_RGB(0xC0, 0xC0, 0xC0));
-    int search_y = right_bottom + 2;
-    fb_fillrect(mx + 4, search_y, W7_SM_TOTAL_W - 8, W7_SM_SEARCH_H - 2, COL_WHITE);
-    fb_drawstring(mx + 10, search_y + 5, "Search programs and files", FB_RGB(0x80, 0x80, 0x80), COL_WHITE);
+    /* Bottom bar */
+    int right_bottom = left_y + max_items * XP_SM_ITEM_H;
+    fb_fillrect(mx + 2, right_bottom, XP_SM_TOTAL_W, XP_SM_BOTTOM_H, COL_XP_SM_BOTTOM_BG);
+    fb_draw_hline(right_bottom, mx + 2, mx + XP_SM_TOTAL_W + 2, FB_RGB(0xC0, 0xC0, 0xC0));
 
-    int bottom_y = search_y + W7_SM_SEARCH_H - 1;
-    fb_fillrect(mx + 2, bottom_y, W7_SM_TOTAL_W - 4, W7_SM_BOTTOM_H, FB_RGB(0xE0, 0xE0, 0xE0));
     int shutdown_idx = start_left_count + 1 + start_right_count;
-    int shutdown_x = mx + W7_SM_TOTAL_W - 100;
+    int shutdown_x = mx + XP_SM_TOTAL_W - 100;
     int shutdown_w = 96;
-    int shutdown_btn_y = bottom_y + 4;
-    uint32_t s_bg = (start_menu_hovered == shutdown_idx) ? FB_RGB(0x00, 0x50, 0xCC) : FB_RGB(0xE0, 0xE0, 0xE0);
+    int shutdown_btn_y = right_bottom + (XP_SM_BOTTOM_H - 22) / 2;
+    uint32_t s_bg = (start_menu_hovered == shutdown_idx) ? COL_XP_SM_SHUTDOWN : COL_XP_SM_BOTTOM_BG;
     uint32_t s_fg = (start_menu_hovered == shutdown_idx) ? COL_WHITE : COL_BLACK;
-    fb_fillrect(shutdown_x, shutdown_btn_y, shutdown_w, W7_SM_BOTTOM_H - 8, s_bg);
-    fb_drawstring(shutdown_x + 6, shutdown_btn_y + 2, "Shut Down", s_fg, s_bg);
-    fb_fillrect(shutdown_x + 62, shutdown_btn_y + 2, 14, 14, FB_RGB(0x80, 0x30, 0x30));
-    fb_drawstring(shutdown_x + 66, shutdown_btn_y + 2, "\x10", COL_WHITE, FB_RGB(0x80, 0x30, 0x30));
+    fb_fillrect(shutdown_x, shutdown_btn_y, shutdown_w, 22, s_bg);
+    fb_draw_rect_outline(shutdown_x, shutdown_btn_y, shutdown_w, 22, FB_RGB(0x80, 0x80, 0x80));
+    fb_drawstring(shutdown_x + 6, shutdown_btn_y + 4, "Shut Down", s_fg, s_bg);
+
+    int logoff_x = shutdown_x - 90;
+    uint32_t l_bg = COL_XP_SM_LOGOFF_BG;
+    uint32_t l_fg = COL_XP_SM_LOGOFF_FG;
+    fb_fillrect(logoff_x, shutdown_btn_y, 86, 22, l_bg);
+    fb_draw_rect_outline(logoff_x, shutdown_btn_y, 86, 22, FB_RGB(0x80, 0x80, 0x80));
+    fb_drawstring(logoff_x + 6, shutdown_btn_y + 4, "Log Off", l_fg, l_bg);
 }
 
 static void draw_taskbar(void)
 {
-    int tby = fb_info.height - W7_TASKBAR_H;
+    int tby = fb_info.height - XP_TASKBAR_H;
     int tw = (int)fb_info.width;
 
-    fb_dwm_glass_glossy(0, tby, tw, W7_TASKBAR_H, FB_RGB(0x18, 0x18, 0x20), 210, 6);
+    uint32_t top = FB_RGB(0x24, 0x5E, 0xDC);
+    uint32_t bottom = FB_RGB(0x18, 0x40, 0xB0);
+    for (int row = 0; row < XP_TASKBAR_H; row++)
+    {
+        uint8_t r = ((top >> 16) & 0xFF) +
+            (((uint32_t)(((bottom >> 16) & 0xFF) - ((top >> 16) & 0xFF))) * row / (XP_TASKBAR_H - 1 < 1 ? 1 : XP_TASKBAR_H - 1));
+        uint8_t g = ((top >> 8) & 0xFF) +
+            (((uint32_t)(((bottom >> 8) & 0xFF) - ((top >> 8) & 0xFF))) * row / (XP_TASKBAR_H - 1 < 1 ? 1 : XP_TASKBAR_H - 1));
+        uint8_t b = (top & 0xFF) +
+            (((uint32_t)((bottom & 0xFF) - (top & 0xFF))) * row / (XP_TASKBAR_H - 1 < 1 ? 1 : XP_TASKBAR_H - 1));
+        fb_draw_hline(tby + row, 0, tw - 1, FB_RGB(r, g, b));
+    }
+    fb_draw_hline(tby, 0, tw - 1, FB_RGB(0x60, 0x90, 0xF0));
 
-    fb_draw_hline(tby, 0, tw - 1, FB_RGB(0x60, 0x60, 0x68));
-
-    int orb_x = 6;
-    int orb_y = tby + (W7_TASKBAR_H - W7_ORB_SIZE) / 2;
+    int start_x = 2;
+    int start_w = XP_START_W;
+    int start_y = tby + 2;
+    int start_h = XP_TASKBAR_H - 4;
     int mx = mouse_get_x_wrapper();
     int my = mouse_get_y_wrapper();
-    int orb_hovered = (mx >= orb_x && mx < orb_x + W7_ORB_SIZE &&
-                       my >= orb_y && my < orb_y + W7_ORB_SIZE);
-    draw_orb_button(orb_x, orb_y, W7_ORB_SIZE, orb_hovered);
+    int start_hovered = (mx >= start_x && mx < start_x + start_w &&
+                         my >= start_y && my < start_y + start_h);
+    draw_start_button(start_x, start_y, start_w, start_h, start_hovered);
 
-    int bx = orb_x + W7_ORB_SIZE + 6;
-    int tray_x = tw - W7_TRAY_W;
+    int bx = start_x + start_w + 4;
+    int tray_x = tw - XP_TRAY_W;
     int max_bw = tray_x - bx - 4;
 
     for (int i = 0; i < num_windows; i++)
@@ -741,70 +737,79 @@ static void draw_taskbar(void)
             bw = remaining;
         }
         int is_active = (i == active_window) && !windows[i].minimized;
-        int btn_y = tby + 3;
-        int btn_h = W7_TASKBAR_H - 6;
-        for (int row = 0; row < btn_h; row++)
-        {
-            uint8_t alpha = is_active ? 200 : 130;
-            uint32_t col = is_active ? FB_RGB(0x60, 0x70, 0x80) : FB_RGB(0x40, 0x44, 0x4C);
-            fb_fillrect_alpha(bx, btn_y + row, bw, 1, col, alpha);
-        }
+        int btn_y = tby + 2;
+        int btn_h = XP_TASKBAR_H - 4;
+
         if (is_active)
-            fb_draw_hline(btn_y, bx + 2, bx + bw - 3, COL_W7_AERO_GLOW_ACT);
+        {
+            fb_fillrect(bx, btn_y, bw, btn_h, FB_RGB(0xE0, 0xE8, 0xF8));
+            fb_draw_rect_outline(bx, btn_y, bw, btn_h, FB_RGB(0x80, 0x90, 0xB0));
+            fb_draw_hline(btn_y + 1, bx + 1, bx + bw - 2, FB_RGB(0xF0, 0xF4, 0xFF));
+            fb_draw_vline(bx + 1, btn_y + 1, btn_y + btn_h - 2, FB_RGB(0xF0, 0xF4, 0xFF));
+            fb_drawstring(bx + 8, btn_y + (btn_h - FONT_HEIGHT) / 2 + 1, windows[i].title, COL_BLACK, FB_RGB(0xE0, 0xE8, 0xF8));
+        }
         else
-            fb_draw_hline(btn_y, bx + 2, bx + bw - 3, FB_RGB(0x60, 0x60, 0x68));
-        fb_drawstring(bx + 8, btn_y + 3, windows[i].title, COL_WHITE, 0);
+        {
+            fb_fillrect(bx, btn_y, bw, btn_h, FB_RGB(0x30, 0x60, 0xD0));
+            fb_draw_rect_outline(bx, btn_y, bw, btn_h, FB_RGB(0x20, 0x48, 0xA0));
+            fb_draw_hline(btn_y + 1, bx + 1, bx + bw - 2, FB_RGB(0x40, 0x78, 0xE0));
+            fb_drawstring(bx + 8, btn_y + (btn_h - FONT_HEIGHT) / 2 + 1, windows[i].title, COL_WHITE, FB_RGB(0x30, 0x60, 0xD0));
+        }
         bx += bw + 3;
     }
 
-    fb_draw_vline(tray_x, tby + 4, tby + W7_TASKBAR_H - 5, FB_RGB(0x60, 0x60, 0x68));
+    fb_draw_vline(tray_x, tby + 4, tby + XP_TASKBAR_H - 5, FB_RGB(0x40, 0x70, 0xD0));
 
     char time_buf[] = "12:00 PM";
-    int time_x = tray_x + (W7_TRAY_W - 8 - (int)strlen(time_buf) * FONT_WIDTH) / 2;
-    fb_drawstring(time_x, tby + 6, time_buf, COL_WHITE, 0);
+    int time_x = tray_x + (XP_TRAY_W - 8 - (int)strlen(time_buf) * FONT_WIDTH) / 2;
+    fb_drawstring(time_x, tby + (XP_TASKBAR_H - FONT_HEIGHT) / 2, time_buf, COL_WHITE, 0);
 
-    int sdb_x = tw - W7_SHOWDESKTOP_W;
-    fb_fillrect(sdb_x, tby, W7_SHOWDESKTOP_W, W7_TASKBAR_H, FB_RGB(0x30, 0x30, 0x38));
-    fb_draw_vline(sdb_x, tby + 2, tby + W7_TASKBAR_H - 3, FB_RGB(0x70, 0x70, 0x78));
+    int sdb_x = tw - XP_SHOWDESKTOP_W;
+    fb_fillrect(sdb_x, tby, XP_SHOWDESKTOP_W, XP_TASKBAR_H, FB_RGB(0x20, 0x48, 0xA0));
+    fb_draw_vline(sdb_x, tby + 2, tby + XP_TASKBAR_H - 3, FB_RGB(0x50, 0x80, 0xE0));
 }
 
 static void handle_start_menu_click(int mx, int my)
 {
     if (!start_menu_open) return;
-    int tby = fb_info.height - W7_TASKBAR_H;
+    int tby = fb_info.height - XP_TASKBAR_H;
     int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
-    int total_h = W7_SM_HEADER_H + max_items * W7_SM_ITEM_H + W7_SM_SEARCH_H + W7_SM_BOTTOM_H;
+    int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
     int smx = 2;
     int smy = tby - total_h;
 
-    if (mx < smx || mx >= smx + W7_SM_TOTAL_W || my < smy || my >= smy + total_h)
+    if (mx < smx || mx >= smx + XP_SM_TOTAL_W + 4 || my < smy || my >= smy + total_h + 2)
     {
         start_menu_open = 0;
         mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         return;
     }
-    if (my < smy + W7_SM_HEADER_H) return;
+    if (my < smy + XP_SM_HEADER_H + 2) return;
 
-    int item_area_y = smy + W7_SM_HEADER_H;
-    int bottom_y = smy + W7_SM_HEADER_H + max_items * W7_SM_ITEM_H;
-    int search_area_y = bottom_y;
-    int shutdown_area_y = search_area_y + W7_SM_SEARCH_H;
+    int item_area_y = smy + XP_SM_HEADER_H + 2;
+    int bottom_y = smy + XP_SM_HEADER_H + 2 + max_items * XP_SM_ITEM_H;
+    int shutdown_area_y = bottom_y;
 
     if (my >= shutdown_area_y)
     {
-        int shutdown_x = smx + W7_SM_TOTAL_W - 100;
+        int shutdown_x = smx + XP_SM_TOTAL_W - 100;
+        int logoff_x = shutdown_x - 90;
         if (mx >= shutdown_x && mx < shutdown_x + 96)
         {
             start_menu_open = 0;
             mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
             cmd_should_exit = 1;
         }
+        else if (mx >= logoff_x && mx < logoff_x + 86)
+        {
+            start_menu_open = 0;
+            mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+        }
         return;
     }
-    if (my >= search_area_y) return;
 
-    int sep_x = smx + W7_SM_LEFT_W;
-    int idx = (my - item_area_y) / W7_SM_ITEM_H;
+    int sep_x = smx + 2 + XP_SM_LEFT_W;
+    int idx = (my - item_area_y) / XP_SM_ITEM_H;
     if (idx < 0) return;
 
     if (mx < sep_x)
@@ -855,19 +860,23 @@ static void handle_start_menu_click(int mx, int my)
 
 static int handle_taskbar_click(int mx, int my)
 {
-    int tby = fb_info.height - W7_TASKBAR_H;
+    int tby = fb_info.height - XP_TASKBAR_H;
     if (my < tby || (uint32_t)my >= fb_info.height) return 0;
 
-    int orb_x = 6;
-    if (mx >= orb_x && mx < orb_x + W7_ORB_SIZE)
+    int start_x = 2;
+    int start_w = XP_START_W;
+    int start_y = tby + 2;
+    int start_h = XP_TASKBAR_H - 4;
+    if (mx >= start_x && mx < start_x + start_w &&
+        my >= start_y && my < start_y + start_h)
     {
         start_menu_open = !start_menu_open;
         mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         return 1;
     }
 
-    int bx = orb_x + W7_ORB_SIZE + 6;
-    int tray_x = (int)fb_info.width - W7_TRAY_W;
+    int bx = start_x + start_w + 4;
+    int tray_x = (int)fb_info.width - XP_TRAY_W;
     for (int i = 0; i < num_windows; i++)
     {
         if (!windows[i].visible) continue;
@@ -895,7 +904,7 @@ static int handle_taskbar_click(int mx, int my)
         bx += bw + 3;
     }
 
-    int sdb_x = (int)fb_info.width - W7_SHOWDESKTOP_W;
+    int sdb_x = (int)fb_info.width - XP_SHOWDESKTOP_W;
     if (mx >= sdb_x)
     {
         int any_visible = 0;
@@ -926,15 +935,17 @@ static void handle_click(void)
 
     if (start_menu_open)
     {
-        int tby = fb_info.height - W7_TASKBAR_H;
+        int tby = fb_info.height - XP_TASKBAR_H;
         int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
-        int total_h = W7_SM_HEADER_H + max_items * W7_SM_ITEM_H + W7_SM_SEARCH_H + W7_SM_BOTTOM_H;
+        int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
         int smx = 2;
         int smy = tby - total_h;
-        int in_menu = (mx >= smx && mx < smx + W7_SM_TOTAL_W && my >= smy && my < smy + total_h);
+        int in_menu = (mx >= smx && mx < smx + XP_SM_TOTAL_W + 4 && my >= smy && my < smy + total_h + 2);
         if (in_menu) { handle_start_menu_click(mx, my); return; }
-        int orb_x = 6;
-        if (my >= tby && mx >= orb_x && mx < orb_x + W7_ORB_SIZE) { start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height); return; }
+
+        int start_x = 2;
+        int start_w = XP_START_W;
+        if (my >= tby && mx >= start_x && mx < start_x + start_w) { start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height); return; }
         start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     }
 
@@ -992,7 +1003,7 @@ static void handle_click(void)
                     w->restore_w = w->w; w->restore_h = w->h;
                     w->x = 0; w->y = 0;
                     w->w = fb_info.width;
-                    w->h = fb_info.height - W7_TASKBAR_H - GUI_TITLE_HEIGHT - 2;
+                    w->h = fb_info.height - XP_TASKBAR_H - GUI_TITLE_HEIGHT - 2;
                     w->maximized = 1;
                 }
                 return;
@@ -1026,8 +1037,8 @@ static void handle_click(void)
             return;
         }
 
-    int cx = mx - (w->x + W7_GLASS_FRAME_W);
-    int cy = my - (w->y + glass_h + W7_GLASS_FRAME_W);
+    int cx = mx - (w->x + XP_BORDER_W);
+    int cy = my - (w->y + glass_h + XP_BORDER_W);
     for (int b = 0; b < w->num_buttons; b++)
     {
         gui_button_t* btn = &w->buttons[b];
@@ -1061,8 +1072,8 @@ static void gui_ensure_pixels(int win_id)
 {
     if (win_id < 0 || win_id >= num_windows) return;
     gui_window_t* w = &windows[win_id];
-    int new_pw = w->w - W7_GLASS_FRAME_W * 2;
-    int new_ph = w->h - GUI_TITLE_HEIGHT - W7_GLASS_FRAME_W * 2 - 1;
+    int new_pw = w->w - XP_BORDER_W * 2;
+    int new_ph = w->h - GUI_TITLE_HEIGHT - XP_BORDER_W * 2 - 1;
     if (new_pw < 1) new_pw = 1;
     if (new_ph < 1) new_ph = 1;
     if (w->pixels)
@@ -1159,7 +1170,7 @@ int gui_create(const char* title, int w, int h)
     win->minimized = 0;
     win->maximized = 0;
     win->pixels = 0;
-    int gf = W7_GLASS_FRAME_W;
+    int gf = XP_BORDER_W;
     win->cw = (w - gf * 2) / FONT_WIDTH;
     win->ch = (h - GUI_TITLE_HEIGHT - gf * 2 - 1) / FONT_HEIGHT;
     win->cursor_x = 0;
@@ -1172,8 +1183,6 @@ int gui_create(const char* title, int w, int h)
     win->btn_close_hover = 0;
     win->btn_max_hover = 0;
     win->btn_min_hover = 0;
-    win->blur_cache = NULL;
-    win->blur_cache_w = 0;
     if (win->cw < 1) win->cw = 1;
     if (win->ch < 1) win->ch = 1;
     win->pw = win->w - gf * 2;
@@ -1188,7 +1197,7 @@ int gui_create(const char* title, int w, int h)
     cascade_x += 20;
     cascade_y += 20;
     if ((uint32_t)(cascade_x + w) > fb_info.width - 40) cascade_x = 20;
-    if ((uint32_t)(cascade_y + h) > fb_info.height - W7_TASKBAR_H - 40)
+    if ((uint32_t)(cascade_y + h) > fb_info.height - XP_TASKBAR_H - 40)
         cascade_y = 40;
     mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     return idx;
@@ -1304,36 +1313,38 @@ void gui_render(void)
 
     fb_backbuffer_alloc();
 
-    draw_desktop_glass();
+    draw_desktop();
     draw_desktop_icons();
 
     /* Start menu hover logic */
     if (start_menu_open)
     {
-        int tby = fb_info.height - W7_TASKBAR_H;
+        int tby = fb_info.height - XP_TASKBAR_H;
         int mmx = mouse_get_x_wrapper();
         int mmy = mouse_get_y_wrapper();
         int prev_hovered = start_menu_hovered;
         start_menu_hovered = -1;
         int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
-        int total_h = W7_SM_HEADER_H + max_items * W7_SM_ITEM_H + W7_SM_SEARCH_H + W7_SM_BOTTOM_H;
+        int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
         int smy = tby - total_h;
-        if (mmx >= 2 && mmx < 2 + W7_SM_TOTAL_W && mmy >= smy && mmy < smy + total_h)
+        if (mmx >= 2 && mmx < 2 + XP_SM_TOTAL_W + 4 && mmy >= smy && mmy < smy + total_h + 2)
         {
-            if (mmy < smy + W7_SM_HEADER_H) goto sm_hover_done;
-            int sep_x = 2 + W7_SM_LEFT_W;
-            int item_area_y = smy + W7_SM_HEADER_H;
-            int bottom_y = smy + W7_SM_HEADER_H + max_items * W7_SM_ITEM_H;
-            int search_area_y = bottom_y;
-            int shutdown_area_y = search_area_y + W7_SM_SEARCH_H;
-            int idx = (mmy - item_area_y) / W7_SM_ITEM_H;
+            if (mmy < smy + XP_SM_HEADER_H + 2) goto sm_hover_done;
+            int sep_x = 2 + 2 + XP_SM_LEFT_W;
+            int item_area_y = smy + XP_SM_HEADER_H + 2;
+            int bottom_y = smy + XP_SM_HEADER_H + 2 + max_items * XP_SM_ITEM_H;
+            int shutdown_area_y = bottom_y;
+            int idx = (mmy - item_area_y) / XP_SM_ITEM_H;
             if (mmy >= shutdown_area_y)
             {
-                int shutdown_x = 2 + W7_SM_TOTAL_W - 100;
+                int shutdown_x = 2 + XP_SM_TOTAL_W - 100;
+                int logoff_x = shutdown_x - 90;
                 if (mmx >= shutdown_x && mmx < shutdown_x + 96)
                     start_menu_hovered = start_left_count + 1 + start_right_count;
+                else if (mmx >= logoff_x && mmx < logoff_x + 86)
+                    start_menu_hovered = start_left_count + 1 + start_right_count + 1;
             }
-            else if (mmy < search_area_y)
+            else
             {
                 if (mmx < sep_x)
                 {
@@ -1350,7 +1361,7 @@ void gui_render(void)
             }
         }
         if (start_menu_hovered != prev_hovered)
-            mark_screen_dirty(2, smy, W7_SM_TOTAL_W, total_h);
+            mark_screen_dirty(2, smy, XP_SM_TOTAL_W + 4, total_h + 2);
     sm_hover_done: ;
     }
 
@@ -1396,8 +1407,8 @@ void gui_render(void)
                         free(w->pixels);
                     w->pixels = NULL;
                 }
-                w->pw = w->w - W7_GLASS_FRAME_W * 2; if (w->pw < 1) w->pw = 1;
-                w->ph = w->h - GUI_TITLE_HEIGHT - W7_GLASS_FRAME_W * 2 - 1; if (w->ph < 1) w->ph = 1;
+                w->pw = w->w - XP_BORDER_W * 2; if (w->pw < 1) w->pw = 1;
+                w->ph = w->h - GUI_TITLE_HEIGHT - XP_BORDER_W * 2 - 1; if (w->ph < 1) w->ph = 1;
                 gui_pixel_alloc(w);
                 w->drag_off_x = mx;
                 w->drag_off_y = my;
@@ -1529,7 +1540,7 @@ void gui_maximize_window(int win_id)
         w->x = 0;
         w->y = 0;
         w->w = fb_info.width;
-        w->h = fb_info.height - W7_TASKBAR_H - GUI_TITLE_HEIGHT - 2;
+        w->h = fb_info.height - XP_TASKBAR_H - GUI_TITLE_HEIGHT - 2;
         w->maximized = 1;
         mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     }
@@ -1581,8 +1592,8 @@ void gui_set_window_size(int win_id, int w, int h)
     if (h < 60) h = 60;
     windows[win_id].w = w;
     windows[win_id].h = h;
-    windows[win_id].cw = (w - W7_GLASS_FRAME_W * 2) / FONT_WIDTH;
-    windows[win_id].ch = (h - GUI_TITLE_HEIGHT - W7_GLASS_FRAME_W * 2 - 1) / FONT_HEIGHT;
+    windows[win_id].cw = (w - XP_BORDER_W * 2) / FONT_WIDTH;
+    windows[win_id].ch = (h - GUI_TITLE_HEIGHT - XP_BORDER_W * 2 - 1) / FONT_HEIGHT;
     if (windows[win_id].cw < 1) windows[win_id].cw = 1;
     if (windows[win_id].ch < 1) windows[win_id].ch = 1;
     gui_ensure_pixels(win_id);

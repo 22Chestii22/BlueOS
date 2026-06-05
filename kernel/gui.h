@@ -7,32 +7,31 @@
 #define GUI_MAX_BUTTONS 8
 #define GUI_EVENT_QUEUE_SIZE 16
 
-#define GUI_TITLE_HEIGHT 24
-#define GUI_TASK_HEIGHT 40
-#define GUI_RESIZE_BORDER 4
+#define XP_TITLE_HEIGHT 22
+#define GUI_TITLE_HEIGHT XP_TITLE_HEIGHT
+#define GUI_RESIZE_BORDER 3
 
-#define GUI_DESKTOP_COL  COL_W7_DESKTOP
+#define GUI_DESKTOP_COL  COL_XP_DESKTOP
 
-#define W7_TASKBAR_H     40
-#define W7_ORB_SIZE      30
-#define W7_TRAY_W        160
-#define W7_SHOWDESKTOP_W 4
+#define XP_TASKBAR_H     36
+#define XP_START_W       120
+#define XP_TRAY_W        160
+#define XP_SHOWDESKTOP_W 4
 
-#define W7_TITLE_GLOW    1
-#define W7_GLASS_BLUR_RADIUS 10
-#define W7_GLASS_TINT_ALPHA  160
+#define XP_SM_HEADER_H   50
+#define XP_SM_LEFT_W     200
+#define XP_SM_RIGHT_W    150
+#define XP_SM_TOTAL_W    (XP_SM_LEFT_W + XP_SM_RIGHT_W)
+#define XP_SM_SEPARATOR_H 4
+#define XP_SM_BOTTOM_H   36
+#define XP_SM_ITEM_H     28
 
-#define W7_SM_HEADER_H   50
-#define W7_SM_LEFT_W     180
-#define W7_SM_RIGHT_W    150
-#define W7_SM_TOTAL_W    (W7_SM_LEFT_W + W7_SM_RIGHT_W)
-#define W7_SM_SEARCH_H   28
-#define W7_SM_BOTTOM_H   32
-#define W7_SM_ITEM_H     26
+#define XP_BTN_CLOSE  0
+#define XP_BTN_MAX    1
+#define XP_BTN_MIN    2
 
-#define W7_BTN_CLOSE  0
-#define W7_BTN_MAX    1
-#define W7_BTN_MIN    2
+/* XP border width (thin 1px) */
+#define XP_BORDER_W 1
 
 typedef struct {
     int type;
@@ -70,15 +69,12 @@ typedef struct {
     int event_head;
     int event_tail;
     int is_terminal;
-    int has_aero_chrome;
     int btn_close_hover;
     int btn_max_hover;
     int btn_min_hover;
     int dirty;
     int dirty_x, dirty_y, dirty_w, dirty_h;
     int pixels_page_allocated;
-    uint32_t* blur_cache;
-    int blur_cache_w;
 } gui_window_t;
 
 void gui_init(void);
