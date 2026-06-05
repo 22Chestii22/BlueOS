@@ -3,7 +3,7 @@
 #include "screen.h"
 
 #define HEAP_START 0x1000000
-#define HEAP_SIZE 0x1000000
+#define HEAP_SIZE 0x2000000
 
 typedef struct block_header
 {

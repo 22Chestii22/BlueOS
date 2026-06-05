@@ -110,7 +110,7 @@ void paging_init(uint64_t mem_size)
     }
 
     uint64_t heap_start = 0x1000000;
-    uint64_t heap_end = heap_start + 0x1000000;
+    uint64_t heap_end = heap_start + 0x2000000;
     for (uint64_t addr = heap_start; addr < heap_end; addr += 0x1000)
     {
         uint32_t f = addr / 0x1000;
