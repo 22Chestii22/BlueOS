@@ -10,7 +10,7 @@ SYSCALL_GETCHAR     equ 10
 SYSCALL_CREATE_TERM equ 14
 SYSCALL_CLR_TERM    equ 15
 SYSCALL_READDIR     equ 16
-SYSCALL_PE_CHECK    equ 17
+SYSCALL_BLU_CHECK   equ 17
 SYSCALL_EXEC_WAIT   equ 18
 SYSCALL_EXISTS      equ 19
 SYSCALL_GUI_PUTS    equ 22
@@ -917,18 +917,18 @@ run_external:
     lea rsi, [r12]
     call strcpy
 
-    ; Append .exe
+    ; Append .blu
     lea rdi, [rel ext_path_buf]
     call strlen
     lea rdi, [rel ext_path_buf]
     add rdi, rax
     mov byte [rdi], '.'
-    mov byte [rdi + 1], 'e'
-    mov byte [rdi + 2], 'x'
-    mov byte [rdi + 3], 'e'
+    mov byte [rdi + 1], 'b'
+    mov byte [rdi + 2], 'l'
+    mov byte [rdi + 3], 'u'
     mov byte [rdi + 4], 0
 
-    mov rax, SYSCALL_PE_CHECK
+    mov rax, SYSCALL_BLU_CHECK
     lea rdi, [rel ext_path_buf]
     syscall
     test rax, rax
@@ -948,18 +948,18 @@ run_external:
     lea rdi, [rel ext_path_buf + 8]
     call strcpy
 
-    ; Append .exe
+    ; Append .blu
     lea rdi, [rel ext_path_buf]
     call strlen
     lea rdi, [rel ext_path_buf]
     add rdi, rax
     mov byte [rdi], '.'
-    mov byte [rdi + 1], 'e'
-    mov byte [rdi + 2], 'x'
-    mov byte [rdi + 3], 'e'
+    mov byte [rdi + 1], 'b'
+    mov byte [rdi + 2], 'l'
+    mov byte [rdi + 3], 'u'
     mov byte [rdi + 4], 0
 
-    mov rax, SYSCALL_PE_CHECK
+    mov rax, SYSCALL_BLU_CHECK
     lea rdi, [rel ext_path_buf]
     syscall
     test rax, rax
@@ -993,12 +993,12 @@ run_external:
     lea rdi, [rel ext_path_buf]
     add rdi, rax
     mov byte [rdi], '.'
-    mov byte [rdi + 1], 'e'
-    mov byte [rdi + 2], 'x'
-    mov byte [rdi + 3], 'e'
+    mov byte [rdi + 1], 'b'
+    mov byte [rdi + 2], 'l'
+    mov byte [rdi + 3], 'u'
     mov byte [rdi + 4], 0
 
-    mov rax, SYSCALL_PE_CHECK
+    mov rax, SYSCALL_BLU_CHECK
     lea rdi, [rel ext_path_buf]
     syscall
     test rax, rax
@@ -1121,7 +1121,7 @@ db "  TYPE    Display file contents", 13, 10
 db "  VER     Display version information", 13, 10
 db "  VOL     Display volume label", 13, 10
 db 13, 10
-db "  <prog>  Run an executable (.exe from PATH)", 13, 10
+    db "  <prog>  Run an executable (.blu from PATH)", 13, 10
 db 13, 10, 0
 
 align 8

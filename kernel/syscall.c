@@ -7,7 +7,7 @@
 #include "module.h"
 #include "timer.h"
 #include "gui.h"
-#include "pe.h"
+#include "blu.h"
 #include "serial.h"
 extern void syscall_stub_handler(void);
 
@@ -104,11 +104,11 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
         }
 
         case 17:
-            return pe_check_format((const char*)a1) ? 1 : 0;
+            return blu_check_format((const char*)a1) ? 1 : 0;
 
         case 18:
         {
-            int pid = pe_spawn((const char*)a1);
+            int pid = blu_spawn((const char*)a1);
             if (pid > 0)
             {
                 process_wait((uint32_t)pid);

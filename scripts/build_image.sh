@@ -39,29 +39,29 @@ if command -v mformat &> /dev/null; then
 
     # Copy executables
     echo "Copying executables..."
-    if [ -f "$PROJECT_ROOT/programs/cmd/cmd.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/cmd/cmd.exe" ::/SYSTEM/PROGRAMS/CMD.EXE
-        echo "  CMD.EXE"
+    if [ -f "$PROJECT_ROOT/programs/cmd/cmd.blu" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/cmd/cmd.blu" ::/SYSTEM/PROGRAMS/CMD.BLU
+        echo "  CMD.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/scout/scout.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/scout/scout.exe" ::/SYSTEM/PROGRAMS/SCOUT.EXE
-        echo "  SCOUT.EXE"
+    if [ -f "$PROJECT_ROOT/programs/scout/scout.blu" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/scout/scout.blu" ::/SYSTEM/PROGRAMS/SCOUT.BLU
+        echo "  SCOUT.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/gui_render/render.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/gui_render/render.exe" ::/SYSTEM/PROGRAMS/RENDER.EXE
-        echo "  RENDER.EXE"
+    if [ -f "$PROJECT_ROOT/programs/gui_render/render.blu" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/gui_render/render.blu" ::/SYSTEM/PROGRAMS/RENDER.BLU
+        echo "  RENDER.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/idle/idle.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/idle/idle.exe" ::/SYSTEM/PROGRAMS/IDLE.EXE
-        echo "  IDLE.EXE"
+    if [ -f "$PROJECT_ROOT/programs/idle/idle.blu" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/idle/idle.blu" ::/SYSTEM/PROGRAMS/IDLE.BLU
+        echo "  IDLE.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/taskman/taskman.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/taskman/taskman.exe" ::/SYSTEM/PROGRAMS/TASKMAN.EXE
-        echo "  TASKMAN.EXE"
+    if [ -f "$PROJECT_ROOT/programs/taskman/taskman.blu" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/taskman/taskman.blu" ::/SYSTEM/PROGRAMS/TASKMAN.BLU
+        echo "  TASKMAN.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
-        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/edit/edit.exe" ::/SYSTEM/PROGRAMS/EDIT.EXE
-        echo "  EDIT.EXE"
+    if [ -f "$PROJECT_ROOT/programs/edit/edit.blu" ]; then
+        mcopy -i "$IMAGE" "$PROJECT_ROOT/programs/edit/edit.blu" ::/SYSTEM/PROGRAMS/EDIT.BLU
+        echo "  EDIT.BLU"
     fi
 
     # Copy loadable modules
@@ -119,29 +119,29 @@ else
     sudo mkdir -p "$MOUNT_DIR"/USERS/DEFAULT
 
     echo "Copying executables..."
-    if [ -f "$PROJECT_ROOT/programs/cmd/cmd.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/cmd/cmd.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/CMD.EXE
-        echo "  CMD.EXE"
+    if [ -f "$PROJECT_ROOT/programs/cmd/cmd.blu" ]; then
+        sudo cp "$PROJECT_ROOT/programs/cmd/cmd.blu" "$MOUNT_DIR"/SYSTEM/PROGRAMS/CMD.BLU
+        echo "  CMD.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/scout/scout.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/scout/scout.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/SCOUT.EXE
-        echo "  SCOUT.EXE"
+    if [ -f "$PROJECT_ROOT/programs/scout/scout.blu" ]; then
+        sudo cp "$PROJECT_ROOT/programs/scout/scout.blu" "$MOUNT_DIR"/SYSTEM/PROGRAMS/SCOUT.BLU
+        echo "  SCOUT.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/gui_render/render.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/gui_render/render.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/RENDER.EXE
-        echo "  RENDER.EXE"
+    if [ -f "$PROJECT_ROOT/programs/gui_render/render.blu" ]; then
+        sudo cp "$PROJECT_ROOT/programs/gui_render/render.blu" "$MOUNT_DIR"/SYSTEM/PROGRAMS/RENDER.BLU
+        echo "  RENDER.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/idle/idle.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/idle/idle.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/IDLE.EXE
-        echo "  IDLE.EXE"
+    if [ -f "$PROJECT_ROOT/programs/idle/idle.blu" ]; then
+        sudo cp "$PROJECT_ROOT/programs/idle/idle.blu" "$MOUNT_DIR"/SYSTEM/PROGRAMS/IDLE.BLU
+        echo "  IDLE.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/taskman/taskman.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/taskman/taskman.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/TASKMAN.EXE
-        echo "  TASKMAN.EXE"
+    if [ -f "$PROJECT_ROOT/programs/taskman/taskman.blu" ]; then
+        sudo cp "$PROJECT_ROOT/programs/taskman/taskman.blu" "$MOUNT_DIR"/SYSTEM/PROGRAMS/TASKMAN.BLU
+        echo "  TASKMAN.BLU"
     fi
-    if [ -f "$PROJECT_ROOT/programs/edit/edit.exe" ]; then
-        sudo cp "$PROJECT_ROOT/programs/edit/edit.exe" "$MOUNT_DIR"/SYSTEM/PROGRAMS/EDIT.EXE
-        echo "  EDIT.EXE"
+    if [ -f "$PROJECT_ROOT/programs/edit/edit.blu" ]; then
+        sudo cp "$PROJECT_ROOT/programs/edit/edit.blu" "$MOUNT_DIR"/SYSTEM/PROGRAMS/EDIT.BLU
+        echo "  EDIT.BLU"
     fi
 
     echo "Copying modules..."

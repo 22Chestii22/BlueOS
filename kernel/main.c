@@ -11,7 +11,7 @@
 #include "serial.h"
 #include "gdt.h"
 #include "paging.h"
-#include "pe.h"
+#include "blu.h"
 #include "module.h"
 #include "vga.h"
 #include "fb.h"
@@ -147,9 +147,9 @@ void kernel_main(void* mbd, uint32_t magic)
     load_disk_modules("\\SYSTEM\\DRIVERS");
 
 
-    pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
-    pe_spawn("\\SYSTEM\\PROGRAMS\\CMD.EXE");
-    pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
+    blu_spawn("\\SYSTEM\\PROGRAMS\\RENDER.BLU");
+    blu_spawn("\\SYSTEM\\PROGRAMS\\CMD.BLU");
+    blu_spawn("\\SYSTEM\\PROGRAMS\\IDLE.BLU");
 
     process_t* first = process_get_ready();
     if (first)
@@ -217,9 +217,9 @@ void kernel_main_bootloader(boot_info_t* boot_info)
     scheduler_init();
     load_disk_modules("\\SYSTEM\\DRIVERS");
 
-    pe_spawn("\\SYSTEM\\PROGRAMS\\RENDER.EXE");
-    pe_spawn("\\SYSTEM\\PROGRAMS\\CMD.EXE");
-    pe_spawn("\\SYSTEM\\PROGRAMS\\IDLE.EXE");
+    blu_spawn("\\SYSTEM\\PROGRAMS\\RENDER.BLU");
+    blu_spawn("\\SYSTEM\\PROGRAMS\\CMD.BLU");
+    blu_spawn("\\SYSTEM\\PROGRAMS\\IDLE.BLU");
 
     process_t* first = process_get_ready();
     if (first)

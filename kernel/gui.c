@@ -5,7 +5,7 @@
 #include "fb.h"
 #include "gui.h"
 #include "font.h"
-#include "pe.h"
+#include "blu.h"
 #include "module.h"
 #include "paging.h"
 #include "process.h"
@@ -819,7 +819,7 @@ static void handle_start_menu_click(int mx, int my)
             start_menu_open = 0;
             mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
             if (start_left_paths[idx])
-                pe_spawn(start_left_paths[idx]);
+                blu_spawn(start_left_paths[idx]);
         }
     }
     else
@@ -956,7 +956,7 @@ static void handle_click(void)
         desktop_icon_t* di = &desktop_icons[i];
         if (mx >= di->x && mx < di->x + di->w && my >= di->y && my < di->y + di->h)
         {
-            pe_spawn(di->path);
+            blu_spawn(di->path);
             return;
         }
     }

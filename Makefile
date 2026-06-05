@@ -30,7 +30,7 @@ KERNEL_SRCS = \
     kernel/process.c \
     kernel/scheduler.c \
     kernel/vfs.c \
-    kernel/pe.c \
+    kernel/blu.c \
     kernel/syscall.c \
     kernel/serial.c \
     kernel/gdt.c \
@@ -67,29 +67,29 @@ blueos.iso: kernel.elf scripts/grub.cfg
 	$(GRUB_MKRESCUE) -o $@ iso
 	rm -rf iso
 
-programs/cmd/cmd.exe: programs/cmd/cmd.asm scripts/make_pe.py
+programs/cmd/cmd.blu: programs/cmd/cmd.asm scripts/make_blu.py
 	nasm -f bin -o programs/cmd/cmd.bin programs/cmd/cmd.asm
-	python3 scripts/make_pe.py programs/cmd/cmd.bin programs/cmd/cmd.exe
+	python3 scripts/make_blu.py programs/cmd/cmd.bin programs/cmd/cmd.blu 0x400000 0
 
-programs/scout/scout.exe: programs/scout/scout.asm scripts/make_pe.py
+programs/scout/scout.blu: programs/scout/scout.asm scripts/make_blu.py
 	nasm -f bin -o programs/scout/scout.bin programs/scout/scout.asm
-	python3 scripts/make_pe.py programs/scout/scout.bin programs/scout/scout.exe
+	python3 scripts/make_blu.py programs/scout/scout.bin programs/scout/scout.blu 0x400000 0
 
-programs/gui_render/render.exe: programs/gui_render/gui_render.asm scripts/make_pe.py
+programs/gui_render/render.blu: programs/gui_render/gui_render.asm scripts/make_blu.py
 	nasm -f bin -o programs/gui_render/render.bin programs/gui_render/gui_render.asm
-	python3 scripts/make_pe.py programs/gui_render/render.bin programs/gui_render/render.exe
+	python3 scripts/make_blu.py programs/gui_render/render.bin programs/gui_render/render.blu 0x400000 0
 
-programs/idle/idle.exe: programs/idle/idle.asm scripts/make_pe.py
+programs/idle/idle.blu: programs/idle/idle.asm scripts/make_blu.py
 	nasm -f bin -o programs/idle/idle.bin programs/idle/idle.asm
-	python3 scripts/make_pe.py programs/idle/idle.bin programs/idle/idle.exe
+	python3 scripts/make_blu.py programs/idle/idle.bin programs/idle/idle.blu 0x400000 0
 
-programs/taskman/taskman.exe: programs/taskman/taskman.asm scripts/make_pe.py
+programs/taskman/taskman.blu: programs/taskman/taskman.asm scripts/make_blu.py
 	nasm -f bin -o programs/taskman/taskman.bin programs/taskman/taskman.asm
-	python3 scripts/make_pe.py programs/taskman/taskman.bin programs/taskman/taskman.exe
+	python3 scripts/make_blu.py programs/taskman/taskman.bin programs/taskman/taskman.blu 0x400000 0
 
-programs/edit/edit.exe: programs/edit/edit.asm scripts/make_pe.py
+programs/edit/edit.blu: programs/edit/edit.asm scripts/make_blu.py
 	nasm -f bin -o programs/edit/edit.bin programs/edit/edit.asm
-	python3 scripts/make_pe.py programs/edit/edit.bin programs/edit/edit.exe
+	python3 scripts/make_blu.py programs/edit/edit.bin programs/edit/edit.blu 0x400000 0
 
 modules/demo/demo.sys: modules/demo/demo.c modules/demo/demo.ld
 	gcc -m64 -ffreestanding -nostdlib -fPIC -I. -I./kernel -c modules/demo/demo.c -o modules/demo/demo.o
@@ -115,7 +115,7 @@ bootloader/stage2.bin: bootloader/stage2.asm
 
 bootloader: bootloader/stage1.bin bootloader/stage2.bin
 
-disk.img: programs/cmd/cmd.exe programs/scout/scout.exe programs/gui_render/render.exe programs/idle/idle.exe programs/taskman/taskman.exe programs/edit/edit.exe modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh bootloader
+disk.img: programs/cmd/cmd.blu programs/scout/scout.blu programs/gui_render/render.blu programs/idle/idle.blu programs/taskman/taskman.blu programs/edit/edit.blu modules/demo/demo.sys modules/keyb/keyb.sys modules/mouse/mouse.sys modules/timer/timer.sys scripts/build_image.sh bootloader
 	./scripts/build_image.sh
 	python3 scripts/install_bootloader.py disk.img
 
@@ -147,12 +147,12 @@ test-virtio: blueos.iso disk.img
 
 clean:
 	rm -f $(KERNEL_OBJS) kernel.elf blueos.iso disk.img
-	rm -f programs/cmd/cmd.bin programs/cmd/cmd.exe
-	rm -f programs/scout/scout.bin programs/scout/scout.exe
-	rm -f programs/gui_render/render.bin programs/gui_render/render.exe
-	rm -f programs/idle/idle.bin programs/idle/idle.exe
-	rm -f programs/taskman/taskman.bin programs/taskman/taskman.exe
-	rm -f programs/edit/edit.bin programs/edit/edit.exe
+	rm -f programs/cmd/cmd.bin programs/cmd/cmd.blu programs/cmd/cmd.exe
+	rm -f programs/scout/scout.bin programs/scout/scout.blu programs/scout/scout.exe
+	rm -f programs/gui_render/render.bin programs/gui_render/render.blu programs/gui_render/render.exe
+	rm -f programs/idle/idle.bin programs/idle/idle.blu programs/idle/idle.exe
+	rm -f programs/taskman/taskman.bin programs/taskman/taskman.blu programs/taskman/taskman.exe
+	rm -f programs/edit/edit.bin programs/edit/edit.blu programs/edit/edit.exe
 	rm -f modules/keyb/keyb.o modules/keyb/keyb.sys
 	rm -f modules/mouse/mouse.o modules/mouse/mouse.sys
 	rm -f modules/timer/timer.o modules/timer/timer.sys modules/ata/ata.o modules/fat/fat.o kernel/elf_loader.o
