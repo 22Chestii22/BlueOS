@@ -110,7 +110,7 @@ void paging_init(uint64_t mem_size)
     }
 
     uint64_t heap_start = 0x1000000;
-    uint64_t heap_end = heap_start + 0x2000000;
+    uint64_t heap_end = heap_start + 0x6000000;
     for (uint64_t addr = heap_start; addr < heap_end; addr += 0x1000)
     {
         uint32_t f = addr / 0x1000;
@@ -129,15 +129,35 @@ void paging_init(uint64_t mem_size)
            mem_size / (1024 * 1024));
 }
 
+static void split_huge_page(uint64_t* pd, int idx)
+{
+    uint64_t huge_base = pd[idx] & ~((1ULL << 21) - 1);
+    uint64_t huge_flags = pd[idx] & 0x1FF;
+
+    uint64_t new_pt = alloc_frame();
+    uint64_t* pt_virt = (uint64_t*)new_pt;
+    for (int j = 0; j < 512; j++)
+        pt_virt[j] = (huge_base + j * 0x1000) | (huge_flags & ~(1ULL << 7)) | 1;
+
+    pd[idx] = new_pt | 0x07;
+}
+
+void map_page_cr3(uint64_t cr3, uint64_t virt, uint64_t phys, uint64_t flags);
+
 void map_page(uint64_t virt, uint64_t phys, uint64_t flags)
+{
+    uint64_t cr3;
+    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    map_page_cr3(cr3, virt, phys, flags);
+}
+
+void map_page_cr3(uint64_t cr3, uint64_t virt, uint64_t phys, uint64_t flags)
 {
     uint64_t pml4_entry = (virt >> 39) & 0x1FF;
     uint64_t pdpt_entry = (virt >> 30) & 0x1FF;
     uint64_t pd_entry = (virt >> 21) & 0x1FF;
     uint64_t pt_entry = (virt >> 12) & 0x1FF;
 
-    uint64_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
     uint64_t* pml4 = (uint64_t*)cr3;
 
     uint64_t* pdpt;
@@ -149,7 +169,11 @@ void map_page(uint64_t virt, uint64_t phys, uint64_t flags)
         pdpt = (uint64_t*)page;
     }
     else
+    {
+        if (pml4[pml4_entry] & (1 << 7))
+            return;
         pdpt = (uint64_t*)(pml4[pml4_entry] & ~0xFFF);
+    }
 
     uint64_t* pd;
     if (!(pdpt[pdpt_entry] & 1))
@@ -160,7 +184,11 @@ void map_page(uint64_t virt, uint64_t phys, uint64_t flags)
         pd = (uint64_t*)page;
     }
     else
+    {
+        if (pdpt[pdpt_entry] & (1 << 7))
+            return;
         pd = (uint64_t*)(pdpt[pdpt_entry] & ~0xFFF);
+    }
 
     uint64_t* pt;
     if (!(pd[pd_entry] & 1))
@@ -171,7 +199,11 @@ void map_page(uint64_t virt, uint64_t phys, uint64_t flags)
         pt = (uint64_t*)page;
     }
     else
+    {
+        if (pd[pd_entry] & (1 << 7))
+            split_huge_page(pd, pd_entry);
         pt = (uint64_t*)(pd[pd_entry] & ~0xFFF);
+    }
 
     pt[pt_entry] = (phys & ~0xFFF) | (flags & 0xFFF) | 1;
 

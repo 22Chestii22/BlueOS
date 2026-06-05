@@ -55,5 +55,6 @@ void process_wait(uint32_t pid);
 void yield_to_scheduler(void);
 int process_get_count(void);
 int process_get_info(int index, uint32_t* pid, char* name, uint32_t* state);
+uint64_t process_get_cr3(int index);
 
 #endif

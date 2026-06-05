@@ -55,7 +55,7 @@ static uint32_t* backbuffer_alloc_pages(uint32_t size, int idx)
                 unmap_page(vaddr + j * 0x1000);
             return NULL;
         }
-        map_page(vaddr + i * 0x1000, paddr, 0x03);
+        map_page_cr3(kernel_cr3, vaddr + i * 0x1000, paddr, 0x03);
     }
 
     next_vaddr = vaddr + pages * 0x1000;

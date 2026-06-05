@@ -58,7 +58,7 @@ _start:
     or eax, 0x83
     mov [pd + ecx*8], eax
     inc ecx
-    cmp ecx, 32
+    cmp ecx, 64
     jb .map_pd_32
 
     mov eax, cr4
