@@ -11,6 +11,8 @@
 #include "paging.h"
 #include "process.h"
 
+int xp_theme = XP_THEME_BLUE;
+
 static gui_window_t windows[GUI_MAX_WINDOWS];
 static int num_windows = 0;
 static int active_window = -1;
@@ -27,6 +29,20 @@ static void draw_xp_scrollbar(int x, int y, int w, int h, int scroll_off, int sc
 
 static int start_menu_open = 0;
 static int start_menu_hovered = -1;
+static int all_programs_open = 0;
+static int all_programs_hovered = -1;
+
+static const char* all_programs_items[] = {
+    "CMD", "RENDER", "IDLE", "EDIT", "SCOUT", "TASKMAN", NULL
+};
+static const char* all_programs_paths[] = {
+    "\\SYSTEM\\PROGRAMS\\CMD.BLU",
+    "\\SYSTEM\\PROGRAMS\\RENDER.BLU",
+    "\\SYSTEM\\PROGRAMS\\IDLE.BLU",
+    "\\SYSTEM\\PROGRAMS\\EDIT.BLU",
+    "\\SYSTEM\\PROGRAMS\\SCOUT.BLU",
+    "\\SYSTEM\\PROGRAMS\\TASKMAN.BLU",
+};
 
 static int screen_dirty = 1;
 static int screen_dirty_x = 0, screen_dirty_y = 0;
@@ -219,6 +235,137 @@ static void fb_draw_rect_outline(int x, int y, int w, int h, uint32_t color)
     fb_draw_hline(y + h - 1, x, x + w - 1, color);
     fb_draw_vline(x, y, y + h - 1, color);
     fb_draw_vline(x + w - 1, y, y + h - 1, color);
+}
+
+/* === Runtime XP Theme System === */
+#undef COL_XP_TITLE_TOP
+#undef COL_XP_TITLE_BOTTOM
+#undef COL_XP_TITLE_BORDER
+#undef COL_XP_TITLE_INACT_TOP
+#undef COL_XP_TITLE_INACT_BOTTOM
+#undef COL_XP_TASKBAR_TOP
+#undef COL_XP_TASKBAR_BOTTOM
+#undef COL_XP_TASKBAR_HIGHLIGHT
+#undef COL_XP_TASKBAR_BORDER
+#undef COL_XP_TRAY_TOP
+#undef COL_XP_TRAY_BOTTOM
+#undef COL_XP_TRAY_HIGHLIGHT
+#undef COL_XP_START_GREEN
+#undef COL_XP_HIGHLIGHT
+#undef COL_XP_BTN_BORDER
+#undef COL_XP_BTN_FACE
+#undef COL_XP_BTN_HOVER
+#undef COL_XP_BTN_SHADOW
+#undef COL_XP_WINDOW_BORDER_ACTIVE
+#undef COL_XP_WINDOW_BORDER_INACT
+#undef COL_XP_MENU_BORDER
+#undef COL_XP_SM_LEFT_BG
+#undef COL_XP_SM_RIGHT_BG
+#undef COL_XP_SM_BOTTOM_BG
+#undef COL_XP_BTN_MIN_FACE
+#undef COL_XP_BTN_MAX_FACE
+#undef COL_XP_BTN_CLOSE_FACE
+#undef COL_XP_BTN_CLOSE_HOV
+#undef COL_XP_MENU_HIGHLIGHT
+#undef GUI_DESKTOP_COL
+
+static uint32_t theme_colors[29];
+
+#define _TC(n)  theme_colors[n]
+#define COL_XP_TITLE_TOP          _TC(0)
+#define COL_XP_TITLE_BOTTOM       _TC(1)
+#define COL_XP_TITLE_BORDER       _TC(2)
+#define COL_XP_TITLE_INACT_TOP    _TC(3)
+#define COL_XP_TITLE_INACT_BOTTOM _TC(4)
+#define COL_XP_TASKBAR_TOP        _TC(5)
+#define COL_XP_TASKBAR_BOTTOM     _TC(6)
+#define COL_XP_TASKBAR_HIGHLIGHT  _TC(7)
+#define COL_XP_TASKBAR_BORDER     _TC(8)
+#define COL_XP_TRAY_TOP           _TC(9)
+#define COL_XP_TRAY_BOTTOM        _TC(10)
+#define COL_XP_TRAY_HIGHLIGHT     _TC(11)
+#define COL_XP_START_GREEN        _TC(12)
+#define COL_XP_HIGHLIGHT          _TC(13)
+#define COL_XP_BTN_BORDER         _TC(14)
+#define COL_XP_BTN_FACE           _TC(15)
+#define COL_XP_BTN_HOVER          _TC(16)
+#define COL_XP_BTN_SHADOW         _TC(17)
+#define COL_XP_WINDOW_BORDER_ACTIVE  _TC(18)
+#define COL_XP_WINDOW_BORDER_INACT   _TC(19)
+#define COL_XP_MENU_BORDER        _TC(20)
+#define COL_XP_SM_LEFT_BG         _TC(21)
+#define COL_XP_SM_RIGHT_BG        _TC(22)
+#define COL_XP_SM_BOTTOM_BG       _TC(23)
+#define COL_XP_BTN_MIN_FACE       _TC(24)
+#define COL_XP_BTN_MAX_FACE       _TC(25)
+#define COL_XP_BTN_CLOSE_FACE     _TC(26)
+#define COL_XP_BTN_CLOSE_HOV      _TC(27)
+#define COL_XP_MENU_HIGHLIGHT     COL_XP_HIGHLIGHT
+#define GUI_DESKTOP_COL           _TC(28)
+
+static void update_theme(int theme)
+{
+    /* Hardcoded colors to avoid self-referential macro expansion */
+    if (theme == XP_THEME_SILVER)
+    {
+        theme_colors[0]  = 0x8B8B9Bu; theme_colors[1]  = 0x65657Bu;
+        theme_colors[2]  = 0x55556Bu; theme_colors[3]  = 0xB5B5C1u;
+        theme_colors[4]  = 0xD0D0D8u; theme_colors[5]  = 0x6B6B7Fu;
+        theme_colors[6]  = 0x535365u; theme_colors[7]  = 0x55556Bu;
+        theme_colors[8]  = 0x55556Bu; theme_colors[9]  = 0xB0B0BCu;
+        theme_colors[10] = 0x9191A0u; theme_colors[11] = 0x6B6B7Fu;
+        theme_colors[12] = 0x3C9900u; theme_colors[13] = 0x6B6B7Fu;
+        theme_colors[14] = 0x9393A1u; theme_colors[15] = 0xE8E8E0u;
+        theme_colors[16] = 0xCEE1F5u; theme_colors[17] = 0xA8A8B0u;
+        theme_colors[18] = 0x4B4B5Fu; theme_colors[19] = 0x8B8B99u;
+        theme_colors[20] = 0x9393A1u; theme_colors[21] = 0xFFFFFFu;
+        theme_colors[22] = 0xE8E8E5u; theme_colors[23] = 0xE8E8E5u;
+        theme_colors[24] = 0x2263D5u; theme_colors[25] = 0x2263D5u;
+        theme_colors[26] = 0xCC4600u; theme_colors[27] = 0xFF6020u;
+        theme_colors[28] = 0x3A6EA5u;
+    }
+    else if (theme == XP_THEME_OLIVE)
+    {
+        theme_colors[0]  = 0x7B8C3Eu; theme_colors[1]  = 0x526129u;
+        theme_colors[2]  = 0x425119u; theme_colors[3]  = 0xADB584u;
+        theme_colors[4]  = 0xC7CCA5u; theme_colors[5]  = 0x637231u;
+        theme_colors[6]  = 0x4A5722u; theme_colors[7]  = 0x4A5722u;
+        theme_colors[8]  = 0x4A5722u; theme_colors[9]  = 0x93A060u;
+        theme_colors[10] = 0x7B894Bu; theme_colors[11] = 0x637231u;
+        theme_colors[12] = 0x3C9900u; theme_colors[13] = 0x637231u;
+        theme_colors[14] = 0x8C9762u; theme_colors[15] = 0xE8E8D0u;
+        theme_colors[16] = 0xCEE1F5u; theme_colors[17] = 0xA0A880u;
+        theme_colors[18] = 0x425119u; theme_colors[19] = 0x8C9762u;
+        theme_colors[20] = 0x8C9762u; theme_colors[21] = 0xFFFFFFu;
+        theme_colors[22] = 0xE8E8D8u; theme_colors[23] = 0xE8E8D8u;
+        theme_colors[24] = 0x2263D5u; theme_colors[25] = 0x2263D5u;
+        theme_colors[26] = 0xCC4600u; theme_colors[27] = 0xFF6020u;
+        theme_colors[28] = 0x3A6EA5u;
+    }
+    else
+    {
+        theme_colors[0]  = 0x0058EEu; theme_colors[1]  = 0x003092u;
+        theme_colors[2]  = 0x003092u; theme_colors[3]  = 0x7697E7u;
+        theme_colors[4]  = 0xABBAE3u; theme_colors[5]  = 0x3165C4u;
+        theme_colors[6]  = 0x1941A5u; theme_colors[7]  = 0x3F7EE0u;
+        theme_colors[8]  = 0x3168D5u; theme_colors[9]  = 0x139EE9u;
+        theme_colors[10] = 0x095BC9u; theme_colors[11] = 0x18BBFFu;
+        theme_colors[12] = 0x3C9900u; theme_colors[13] = 0x316AC5u;
+        theme_colors[14] = 0x7F9DB9u; theme_colors[15] = 0xECE9D8u;
+        theme_colors[16] = 0xCEE1F5u; theme_colors[17] = 0xACA899u;
+        theme_colors[18] = 0x0831D9u; theme_colors[19] = 0x6582F5u;
+        theme_colors[20] = 0x7F9DB9u; theme_colors[21] = 0xFFFFFFu;
+        theme_colors[22] = 0xD6E4F0u; theme_colors[23] = 0xE2E6EBu;
+        theme_colors[24] = 0x2263D5u; theme_colors[25] = 0x2263D5u;
+        theme_colors[26] = 0xCC4600u; theme_colors[27] = 0xFF6020u;
+        theme_colors[28] = 0x3A6EA5u;
+    }
+    xp_theme = theme;
+    mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+
+    /* Update desktop background for non-blue themes */
+    if (theme == XP_THEME_SILVER || theme == XP_THEME_OLIVE)
+        fb_clear(GUI_DESKTOP_COL);
 }
 
 static void draw_xp_button_3d(int x, int y, int w, int h, const char* text, uint32_t face, int pressed)
@@ -912,6 +1059,52 @@ static void draw_start_menu(void)
         fb_drawstring(left_x + 28, iy + (XP_SM_ITEM_H - FONT_HEIGHT) / 2, start_left_items[i], fg, bg);
     }
 
+    /* "All Programs" separator and button */
+    int ap_sep_y = left_y + start_left_count * XP_SM_ITEM_H;
+    fb_draw_hline(ap_sep_y, left_x + 4, left_x + left_w - 4, FB_RGB(0xC0, 0xC0, 0xC0));
+    int ap_item_y = ap_sep_y + 2;
+    {
+        int ap_hovered = (start_menu_hovered == (start_left_count + start_right_count + 2));
+        uint32_t ap_bg = ap_hovered ? COL_XP_HIGHLIGHT : COL_XP_SM_LEFT_BG;
+        uint32_t ap_fg = ap_hovered ? COL_WHITE : COL_BLACK;
+        fb_fillrect(left_x + 2, ap_item_y, left_w - 4, XP_SM_ITEM_H, ap_bg);
+        fb_drawstring(left_x + 28, ap_item_y + (XP_SM_ITEM_H - FONT_HEIGHT) / 2, "All Programs", ap_fg, ap_bg);
+        /* Right-pointing triangle */
+        int tri_x = left_x + left_w - 18;
+        int tri_y = ap_item_y + XP_SM_ITEM_H / 2;
+        for (int r = 0; r < 4; r++)
+            for (int c = 0; c <= r; c++)
+                fb_putpixel(tri_x + c, tri_y - r, ap_fg);
+    }
+
+    /* All Programs flyout */
+    if (all_programs_open)
+    {
+        int ap_count = 0;
+        while (all_programs_items[ap_count]) ap_count++;
+        int fx = mx + mw;
+        int f_item_h = 22;
+        int fw = 140;
+        int fh = ap_count * f_item_h + 4;
+        int fy = ap_item_y;
+        if (fy + fh > tby) fy = tby - fh;
+        for (int i = 1; i <= 3; i++)
+        {
+            uint8_t a = 20 - i * 5;
+            fb_fillrect_alpha(fx + i, fy + i, fw, fh, COL_BLACK, a);
+        }
+        fb_draw_rect_outline(fx, fy, fw, fh, FB_RGB(0x55, 0x55, 0x55));
+        fb_fillrect(fx + 1, fy + 1, fw - 2, fh - 2, COL_WHITE);
+        for (int i = 0; i < ap_count; i++)
+        {
+            int iy = fy + 2 + i * f_item_h;
+            uint32_t bg = (all_programs_hovered == i) ? COL_XP_HIGHLIGHT : COL_WHITE;
+            uint32_t fg = (all_programs_hovered == i) ? COL_WHITE : COL_BLACK;
+            fb_fillrect(fx + 2, iy, fw - 4, f_item_h, bg);
+            fb_drawstring(fx + 8, iy + (f_item_h - FONT_HEIGHT) / 2, all_programs_items[i], fg, bg);
+        }
+    }
+
     for (int i = 0; i < start_right_count; i++)
     {
         int iy = left_y + i * XP_SM_ITEM_H;
@@ -1056,9 +1249,37 @@ static void handle_start_menu_click(int mx, int my)
     int smx = 0;
     int smy = tby - total_h;
 
+    /* Check All Programs flyout click first */
+    if (all_programs_open)
+    {
+        int ap_count = 0;
+        while (all_programs_items[ap_count]) ap_count++;
+        int ap_item_y = smy + XP_SM_HEADER_H + start_left_count * XP_SM_ITEM_H + 2;
+        int fx = XP_SM_TOTAL_W;
+        int f_item_h = 22;
+        int fw = 140;
+        int fh = ap_count * f_item_h + 4;
+        int fy = ap_item_y;
+        if (fy + fh > tby) fy = tby - fh;
+        if (mx >= fx && mx < fx + fw && my >= fy && my < fy + fh)
+        {
+            int ap_idx = (my - fy - 2) / f_item_h;
+            if (ap_idx >= 0 && ap_idx < ap_count)
+            {
+                start_menu_open = 0;
+                all_programs_open = 0;
+                mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+                if (all_programs_paths[ap_idx])
+                    blu_spawn(all_programs_paths[ap_idx]);
+            }
+            return;
+        }
+    }
+
     if (mx < smx || mx >= smx + XP_SM_TOTAL_W || my < smy || my >= smy + total_h)
     {
         start_menu_open = 0;
+        all_programs_open = 0;
         mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         return;
     }
@@ -1097,6 +1318,11 @@ static void handle_start_menu_click(int mx, int my)
             mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
             if (start_left_paths[idx])
                 blu_spawn(start_left_paths[idx]);
+        }
+        else
+        {
+            all_programs_open = !all_programs_open;
+            mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
         }
     }
     else
@@ -1211,8 +1437,8 @@ static void handle_click(void)
 
         int start_x = 2;
         int start_w = XP_START_W;
-        if (my >= tby && mx >= start_x && mx < start_x + start_w) { start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height); return; }
-        start_menu_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
+        if (my >= tby && mx >= start_x && mx < start_x + start_w) { start_menu_open = 0; all_programs_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height); return; }
+        start_menu_open = 0; all_programs_open = 0; mark_screen_dirty(0, 0, fb_info.width, fb_info.height);
     }
 
     if (handle_taskbar_click(mx, my)) return;
@@ -1455,6 +1681,9 @@ void gui_init(void)
     cascade_y = 40;
     start_menu_open = 0;
     start_menu_hovered = -1;
+    all_programs_open = 0;
+    all_programs_hovered = -1;
+    update_theme(XP_THEME_BLUE);
 }
 
 int gui_create(const char* title, int w, int h)
@@ -1659,6 +1888,15 @@ void gui_render(void)
                 {
                     if (idx >= 0 && idx < start_left_count)
                         start_menu_hovered = idx;
+                    else
+                    {
+                        start_menu_hovered = start_left_count + start_right_count + 2;
+                        if (!all_programs_open)
+                        {
+                            all_programs_open = 1;
+                            mark_screen_dirty(0, smy, XP_SM_TOTAL_W + 160, total_h);
+                        }
+                    }
                 }
                 else
                 {
@@ -1670,6 +1908,34 @@ void gui_render(void)
         if (start_menu_hovered != prev_hovered)
             mark_screen_dirty(0, smy, XP_SM_TOTAL_W, total_h);
     sm_hover_done: ;
+
+        /* All Programs flyout hover */
+        if (all_programs_open)
+        {
+            int ap_count = 0;
+            while (all_programs_items[ap_count]) ap_count++;
+            int ap_item_y = smy + XP_SM_HEADER_H + start_left_count * XP_SM_ITEM_H + 2;
+            int fx = XP_SM_TOTAL_W;
+            int f_item_h = 22;
+            int fw = 140;
+            int fh = ap_count * f_item_h + 4;
+            int fy = ap_item_y;
+            if (fy + fh > tby) fy = tby - fh;
+            int prev_ap_hover = all_programs_hovered;
+            all_programs_hovered = -1;
+            if (mmx >= fx && mmx < fx + fw && mmy >= fy && mmy < fy + fh)
+            {
+                int ap_idx = (mmy - fy - 2) / f_item_h;
+                if (ap_idx >= 0 && ap_idx < ap_count)
+                    all_programs_hovered = ap_idx;
+            }
+            if (all_programs_hovered != prev_ap_hover)
+                mark_screen_dirty(fx, fy, fw, fh);
+        }
+        else
+        {
+            all_programs_hovered = -1;
+        }
     }
 
     /* Track dragging and resizing */
