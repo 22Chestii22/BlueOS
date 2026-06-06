@@ -101,7 +101,7 @@ Write a creative, fun program that does something interesting.
 
 
 def call_groq(
-    system_prompt, user_message, model="llama-3.1-8b-instant", max_tokens=1024
+    system_prompt, user_message, model="llama-3.1-8b-instant", max_tokens=2048
 ):
     body = json.dumps(
         {
@@ -167,6 +167,9 @@ def generate_blu(query):
 
         desc_match = re.search(r"; DESC:\s*(.+)", raw)
         description = desc_match.group(1).strip() if desc_match else ""
+
+        raw = re.sub(r"^```[a-zA-Z]*\s*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw)
 
         code_start = re.search(r"BITS\s+64", raw, re.IGNORECASE)
         if code_start:

@@ -202,6 +202,7 @@ static int launcher_generate_app(const char* query)
     if (ret > 0)
     {
         const char* body = http_find_body(response, ret);
+        if (!body) body = response;
         const char* path_start = strstr(body, "\"path\":\"");
         if (path_start)
         {

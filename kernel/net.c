@@ -917,7 +917,7 @@ const char* http_find_body(const char* response, int total_len)
         if (p[0] == '\r' && p[1] == '\n' && p[2] == '\r' && p[3] == '\n')
             return p + 4;
     }
-    return response;
+    return NULL;
 }
 
 void net_init(void)
