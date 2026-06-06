@@ -173,20 +173,19 @@ static void launcher_toggle_isr(void)
     launcher_hotkey_flag = 1;
 }
 
-static int launcher_query_groq(const char* query)
+static int launcher_generate_app(const char* query)
 {
     if (!query || !query[0]) return 0;
 
-    /* Construct JSON body for Groq API */
     char json_body[512];
     int jlen = 0;
-    const char* json_prefix = "{\"model\":\"llama3-8b-8192\",\"messages\":[{\"role\":\"user\",\"content\":\"";
-    const char* json_suffix = "\"}],\"max_tokens\":50}";
+    const char* json_prefix = "{\"query\":\"";
+    const char* json_suffix = "\"}";
 
     const char* p = json_prefix;
     while (*p) json_body[jlen++] = *p++;
     const char* q = query;
-    while (*q && jlen < 450)
+    while (*q && jlen < 480)
     {
         if (*q == '"' || *q == '\\') json_body[jlen++] = '\\';
         json_body[jlen++] = *q++;
@@ -197,69 +196,54 @@ static int launcher_query_groq(const char* query)
 
     char response[2048];
 
-    /* Try local relay first (host machine proxy, handles TLS) */
+    int ret = http_post(GROQ_RELAY_HOST, "/generate",
+                        "application/json", json_body, jlen,
+                        response, sizeof(response) - 1);
+    if (ret > 0)
     {
-        char relay_path[256];
-        int rplen = 0;
-        const char* rp = "/v1/chat/completions";
-        while (*rp) relay_path[rplen++] = *rp++;
-        relay_path[rplen] = 0;
-
-        int ret = http_post(GROQ_RELAY_HOST, relay_path,
-                            "application/json", json_body, jlen,
-                            response, sizeof(response) - 1);
-        if (ret > 0)
+        const char* path_start = strstr(response, "\"path\":\"");
+        if (path_start)
         {
-            /* Find the assistant's reply in JSON response */
-            const char* content_start = strstr(response, "\"content\":\"");
-            if (content_start)
+            path_start += 8;
+            const char* path_end = strstr(path_start, "\"");
+            if (path_end && path_end > path_start)
             {
-                content_start += 12;
-                const char* content_end = strstr(content_start, "\"");
-                if (content_end && content_end > content_start)
-                {
-                    int clen = content_end - content_start;
-                    if (clen > 100) clen = 100;
-                    memcpy(ai_generating_msg, "AI: ", 4);
-                    memcpy(ai_generating_msg + 4, content_start, clen);
-                    ai_generating_msg[4 + clen] = 0;
-                    return 1;
-                }
+                int plen = path_end - path_start;
+                if (plen > 120) plen = 120;
+                char gen_path[128];
+                memcpy(gen_path, path_start, plen);
+                gen_path[plen] = 0;
+
+                launcher_open = 0;
+                search_pos = 0;
+                search_text[0] = 0;
+                results_dirty = 1;
+                gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
+
+                blu_spawn(gen_path);
+                return 1;
+            }
+        }
+
+        const char* err_start = strstr(response, "\"message\":\"");
+        if (err_start)
+        {
+            err_start += 11;
+            const char* err_end = strstr(err_start, "\"");
+            if (err_end && err_end > err_start)
+            {
+                int elen = err_end - err_start;
+                if (elen > 100) elen = 100;
+                memcpy(ai_generating_msg, "Error: ", 7);
+                memcpy(ai_generating_msg + 7, err_start, elen);
+                ai_generating_msg[7 + elen] = 0;
+                return 0;
             }
         }
     }
 
-    /* Fallback: try direct Groq API (requires TLS, will likely fail) */
-    {
-        char groq_path[256];
-        int gplen = 0;
-        const char* gp = "/openai/v1/chat/completions";
-        while (*gp) groq_path[gplen++] = *gp++;
-        groq_path[gplen] = 0;
-
-        int ret = http_post(GROQ_API_HOST, groq_path,
-                            "application/json", json_body, jlen,
-                            response, sizeof(response) - 1);
-        if (ret > 0)
-        {
-            const char* content_start = strstr(response, "\"content\":\"");
-            if (content_start)
-            {
-                content_start += 12;
-                const char* content_end = strstr(content_start, "\"");
-                if (content_end && content_end > content_start)
-                {
-                    int clen = content_end - content_start;
-                    if (clen > 100) clen = 100;
-                    memcpy(ai_generating_msg, "AI: ", 4);
-                    memcpy(ai_generating_msg + 4, content_start, clen);
-                    ai_generating_msg[4 + clen] = 0;
-                    return 1;
-                }
-            }
-        }
-    }
-
+    memcpy(ai_generating_msg, "AI: Generation failed (check relay)", 36);
+    ai_generating_msg[36] = 0;
     return 0;
 }
 
@@ -367,15 +351,14 @@ static void launcher_process_key(char c)
             }
             else if (type == 1 && idx >= 0 && idx < AI_DB_SIZE)
             {
-                if (!launcher_query_groq(search_text))
-                {
-                    const char* name = ai_db[idx].app_name;
-                    int slen = strlen(name);
-                    if (slen > 50) slen = 50;
-                    memcpy(ai_generating_msg, "AI generating ", 13);
-                    memcpy(ai_generating_msg + 13, name, slen);
-                    ai_generating_msg[13 + slen] = 0;
-                }
+                const char* name = ai_db[idx].app_name;
+                int slen = strlen(name);
+                if (slen > 50) slen = 50;
+                memcpy(ai_generating_msg, "AI generating ", 13);
+                memcpy(ai_generating_msg + 13, name, slen);
+                ai_generating_msg[13 + slen] = 0;
+                gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
+                launcher_generate_app(search_text);
             }
         }
         gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
@@ -495,15 +478,14 @@ void launcher_handle_click(int mx, int my)
         }
         else if (type == 1 && app_idx >= 0 && app_idx < AI_DB_SIZE)
         {
-            if (!launcher_query_groq(search_text))
-            {
-                const char* name = ai_db[app_idx].app_name;
-                int slen = strlen(name);
-                if (slen > 50) slen = 50;
-                memcpy(ai_generating_msg, "AI generating ", 13);
-                memcpy(ai_generating_msg + 13, name, slen);
-                ai_generating_msg[13 + slen] = 0;
-            }
+            const char* name = ai_db[app_idx].app_name;
+            int slen = strlen(name);
+            if (slen > 50) slen = 50;
+            memcpy(ai_generating_msg, "AI generating ", 13);
+            memcpy(ai_generating_msg + 13, name, slen);
+            ai_generating_msg[13 + slen] = 0;
+            gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
+            launcher_generate_app(search_text);
         }
         return;
     }

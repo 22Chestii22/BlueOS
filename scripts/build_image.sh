@@ -33,6 +33,7 @@ if command -v mformat &> /dev/null; then
     mmd -i "$IMAGE" ::/SYSTEM
     mmd -i "$IMAGE" ::/SYSTEM/DRIVERS
     mmd -i "$IMAGE" ::/SYSTEM/PROGRAMS
+    mmd -i "$IMAGE" ::/SYSTEM/AI
     mmd -i "$IMAGE" ::/TEMP
     mmd -i "$IMAGE" ::/USERS
     mmd -i "$IMAGE" ::/USERS/DEFAULT
@@ -114,6 +115,7 @@ else
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM/DRIVERS
     sudo mkdir -p "$MOUNT_DIR"/SYSTEM/PROGRAMS
+    sudo mkdir -p "$MOUNT_DIR"/SYSTEM/AI
     sudo mkdir -p "$MOUNT_DIR"/TEMP
     sudo mkdir -p "$MOUNT_DIR"/USERS
     sudo mkdir -p "$MOUNT_DIR"/USERS/DEFAULT

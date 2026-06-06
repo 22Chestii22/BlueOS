@@ -10,6 +10,7 @@ iso/
 
 *.log
 *.bak
+build/
 __pycache__/
 kernel/boot_no_fb.asm
 .env

@@ -344,17 +344,24 @@ static int arp_cache_lookup(const uint8_t* ip, uint8_t* mac)
     return 0;
 }
 
+static int arp_cache_next_evict = 0;
+
 static void arp_cache_add(const uint8_t* ip, const uint8_t* mac)
 {
-    int oldest = 0;
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
     {
-        if (!arp_cache[i].valid) { oldest = i; break; }
-        if (i > oldest) oldest = i;
+        if (!arp_cache[i].valid)
+        {
+            memcpy(arp_cache[i].ip, ip, 4);
+            memcpy(arp_cache[i].mac, mac, 6);
+            arp_cache[i].valid = 1;
+            return;
+        }
     }
-    memcpy(arp_cache[oldest].ip, ip, 4);
-    memcpy(arp_cache[oldest].mac, mac, 6);
-    arp_cache[oldest].valid = 1;
+    memcpy(arp_cache[arp_cache_next_evict].ip, ip, 4);
+    memcpy(arp_cache[arp_cache_next_evict].mac, mac, 6);
+    arp_cache[arp_cache_next_evict].valid = 1;
+    arp_cache_next_evict = (arp_cache_next_evict + 1) % ARP_CACHE_SIZE;
 }
 
 int net_arp_resolve(const uint8_t* ip, uint8_t* mac)
@@ -567,17 +574,33 @@ int net_dns_query(const char* hostname, uint8_t* ip_out)
             if (ancount > 0)
             {
                 const uint8_t* rdata = buf + sizeof(dns_header_t);
-                while (*rdata) rdata++;
-                rdata += 5;
-                if ((uint32_t)(rdata - buf) + 4 <= (uint32_t)rlen)
+                /* Skip question section: QNAME (labels or pointer) */
+                while (rdata - buf < rlen)
                 {
-                    memcpy(ip_out, rdata, 4);
-                    char ips[16];
-                    ip_to_str(ip_out, ips);
-                    screen_write("DNS: resolved to ");
-                    screen_write(ips);
-                    screen_write("\n");
-                    return 1;
+                    if (*rdata == 0) { rdata++; break; }
+                    if (*rdata == 0xC0) { rdata += 2; break; }
+                    rdata += *rdata + 1;
+                }
+                rdata += 4; /* skip QTYPE + QCLASS */
+                /* Now at answer section */
+                if (rdata + 16 <= (const uint8_t*)buf + rlen)
+                {
+                    /* Skip answer NAME (pointer or labels) */
+                    if (*rdata == 0xC0) rdata += 2;
+                    else { while (*rdata) rdata += *rdata + 1; rdata++; }
+                    rdata += 8; /* TYPE(2) + CLASS(2) + TTL(4) */
+                    uint16_t rdlen = ((uint16_t)rdata[0] << 8) | rdata[1];
+                    rdata += 2; /* skip RDLENGTH */
+                    if (rdlen == 4 && rdata + 4 <= (const uint8_t*)buf + rlen)
+                    {
+                        memcpy(ip_out, rdata, 4);
+                        char ips[16];
+                        ip_to_str(ip_out, ips);
+                        screen_write("DNS: resolved to ");
+                        screen_write(ips);
+                        screen_write("\n");
+                        return 1;
+                    }
                 }
             }
         }
@@ -604,26 +627,29 @@ int tcp_connect(const uint8_t* dst_ip, uint16_t dst_port)
     c->ack = 0;
     c->state = TCP_STATE_SYN_SENT;
 
-    net_send_tcp_segment(c, TCP_FLAG_SYN, NULL, 0);
-
-    uint64_t timeout = timer_get_ticks() + 200;
-    while (timer_get_ticks() < timeout)
+    for (int retry = 0; retry < 3; retry++)
     {
-        uint8_t buf[1522];
-        int rlen = rtl8139_recv(buf, sizeof(buf));
-        if (rlen > 0)
+        net_send_tcp_segment(c, TCP_FLAG_SYN, NULL, 0);
+
+        uint64_t timeout = timer_get_ticks() + 200;
+        while (timer_get_ticks() < timeout)
         {
-            net_process_packet(buf, rlen);
-            if (c->state == TCP_STATE_ESTABLISHED)
+            uint8_t buf[1522];
+            int rlen = rtl8139_recv(buf, sizeof(buf));
+            if (rlen > 0)
             {
-                char ip_str[16];
-                ip_to_str(dst_ip, ip_str);
-                screen_write("TCP: connected to ");
-                screen_write(ip_str);
-                screen_write(":");
-                screen_write_dec(dst_port);
-                screen_write("\n");
-                return idx;
+                net_process_packet(buf, rlen);
+                if (c->state == TCP_STATE_ESTABLISHED)
+                {
+                    char ip_str[16];
+                    ip_to_str(dst_ip, ip_str);
+                    screen_write("TCP: connected to ");
+                    screen_write(ip_str);
+                    screen_write(":");
+                    screen_write_dec(dst_port);
+                    screen_write("\n");
+                    return idx;
+                }
             }
         }
     }
@@ -824,7 +850,7 @@ int http_post(const char* hostname, const char* path,
         return -1;
     }
 
-    char request[1536];
+    char request[4096];
     char* p = request;
     int remaining = sizeof(request);
 
