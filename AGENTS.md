@@ -136,6 +136,18 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - [x] Start button: pill-shaped with 4-color Windows flag logo
 - [ ] Quick Launch section (deferred — not in default XP Luna)
 
+## AI Launcher Status
+
+- [x] Ctrl+Space hotkey detection (keyb.c tracks Ctrl+Space, calls api->hotkey_triggered())
+- [x] Hotkey callback mechanism (kernel_api.h/module.c: register_hotkey_callback + hotkey_triggered)
+- [x] Spotlight-style overlay UI (semi-transparent backdrop, centered search bar)
+- [x] Text input with real-time filtering (substring match against installed programs)
+- [x] Mouse hover to select results
+- [x] Enter to launch, Escape to close
+- [x] Click outside closes launcher
+- [ ] Arrow key navigation (deferred — needs extended scancode support in keyb.c)
+- [ ] AI-generated app suggestions (placeholder — no AI API available)
+
 ## Commit & Release Rules
 
 After every successful update:
