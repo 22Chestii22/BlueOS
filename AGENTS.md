@@ -145,8 +145,8 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 - [x] Mouse hover to select results
 - [x] Enter to launch, Escape to close
 - [x] Click outside closes launcher
-- [ ] Arrow key navigation (deferred — needs extended scancode support in keyb.c)
-- [ ] AI-generated app suggestions (placeholder — no AI API available)
+- [x] Arrow key navigation (extended scancodes mapped to 0x01/0x02 in keyb.c)
+- [x] AI-generated app suggestions (Groq API via relay, .env for key, host-side relay)
 
 ## Commit & Release Rules
 

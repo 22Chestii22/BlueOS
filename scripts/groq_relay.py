@@ -17,6 +17,28 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
+
+def load_env(path=".env"):
+    """Load .env file manually (no dependency on python-dotenv)."""
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[7:]
+                k, _, v = line.partition("=")
+                k = k.strip()
+                v = v.strip().strip("'\"")
+                if k and v:
+                    os.environ.setdefault(k, v)
+    except FileNotFoundError:
+        pass
+
+
+load_env()
+
 API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 

@@ -13,6 +13,7 @@
 #include "paging.h"
 #include "gdt.h"
 #include "timer.h"
+#include "timer.h"
 
 extern void context_activate(context_t* ctx, uint64_t kernel_stack_top);
 
@@ -173,7 +174,7 @@ uint64_t timer_get_ticks_wrapper(void)
 {
     if (registered_timer_get_ticks)
         return (*registered_timer_get_ticks)();
-    return 0;
+    return timer_get_ticks();
 }
 
 void load_disk_modules(const char* dir_path)

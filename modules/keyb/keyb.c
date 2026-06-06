@@ -41,6 +41,14 @@ static const char scancode_ascii[] = {
     [0x57] = 0,     [0x58] = 0,
 };
 
+/* Extended scancode to ASCII mapping for arrow keys and friends */
+static const char extended_ascii[] = {
+    [0x48] = 0x01,  /* Up arrow → SOH */
+    [0x50] = 0x02,  /* Down arrow → STX */
+    [0x4B] = 0x03,  /* Left arrow → ETX */
+    [0x4D] = 0x04,  /* Right arrow → EOT */
+};
+
 static const char scancode_shift[] = {
     [0x00] = 0,  [0x01] = 0x1B, [0x02] = '!',   [0x03] = '@',
     [0x04] = '#',   [0x05] = '$',   [0x06] = '%',   [0x07] = '^',
@@ -73,7 +81,16 @@ void keyboard_handler(void)
     if (extended)
     {
         extended = 0;
-        if (scancode & 0x80) return;
+        if ((scancode & 0x80) == 0 && scancode < sizeof(extended_ascii) && extended_ascii[scancode])
+        {
+            char c = extended_ascii[scancode];
+            int next = (key_buffer_head + 1) % 256;
+            if (next != key_buffer_tail)
+            {
+                key_buffer[key_buffer_head] = c;
+                key_buffer_head = next;
+            }
+        }
         return;
     }
 

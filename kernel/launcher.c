@@ -382,6 +382,28 @@ static void launcher_process_key(char c)
         return;
     }
 
+    if (c == 0x01) /* Up arrow */
+    {
+        if (num_results > 0)
+        {
+            selected_result--;
+            if (selected_result < 0) selected_result = num_results - 1;
+            launcher_mark_bar_dirty();
+        }
+        return;
+    }
+
+    if (c == 0x02) /* Down arrow */
+    {
+        if (num_results > 0)
+        {
+            selected_result++;
+            if (selected_result >= num_results) selected_result = 0;
+            launcher_mark_bar_dirty();
+        }
+        return;
+    }
+
     if (c == '\b')
     {
         if (search_pos > 0)
@@ -566,17 +588,18 @@ void launcher_render(void)
     draw_magnifying_glass(tx, ty + 2, 14, FB_RGB(0x60, 0x70, 0xA0));
     tx += 22;
 
+    uint32_t bar_bg = FB_RGB(0xE0, 0xE4, 0xF0);
     /* Placeholder text when empty */
     if (search_pos == 0)
     {
         fb_drawstring(tx, ty, "Search programs and AI apps...",
-                      FB_RGB(0x99, 0x99, 0xAA), 0);
+                      FB_RGB(0x99, 0x99, 0xAA), bar_bg);
     }
 
     /* Draw input text */
     for (int i = 0; i < search_pos; i++)
     {
-        fb_drawchar(tx, ty, search_text[i], COL_BLACK, 0);
+        fb_drawchar(tx, ty, search_text[i], COL_BLACK, bar_bg);
         tx += FONT_WIDTH;
     }
 
@@ -586,11 +609,14 @@ void launcher_render(void)
 
     /* Keyboard shortcut hint */
     {
-        uint32_t hint_col = FB_RGB(0x88, 0x88, 0x99);
+        uint32_t hint_col = FB_RGB(0xAA, 0xAA, 0xBB);
+        uint32_t hint_bg = FB_RGB(0x15, 0x15, 0x25);
         int hint_y = bar_y + bar_h + 4;
-        fb_drawstring(bar_x + 4, hint_y,
-                      "\x18\x19  Navigate    Enter  Open    Esc  Close",
-                      hint_col, 0);
+        int hint_h = FONT_HEIGHT + 4;
+        fb_fillrect(bar_x, hint_y, bar_w, hint_h, hint_bg);
+        fb_drawstring(bar_x + 4, hint_y + 2,
+                      "Arrow keys: Navigate    Enter: Open    Esc: Close",
+                      hint_col, hint_bg);
     }
 
     /* AI generating message */

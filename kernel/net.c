@@ -466,8 +466,49 @@ int net_recv_ip(uint8_t* src_ip, uint8_t* protocol, void* buffer, int max_len)
     return 0;
 }
 
+static int parse_ip(const char* s, uint8_t* ip)
+{
+    int octet = 0, val = 0, dots = 0;
+    for (int i = 0; ; i++)
+    {
+        char c = s[i];
+        if (c >= '0' && c <= '9')
+        {
+            val = val * 10 + (c - '0');
+            if (val > 255) return 0;
+        }
+        else if (c == '.')
+        {
+            ip[octet++] = (uint8_t)val;
+            val = 0;
+            dots++;
+            if (octet > 3 || dots > 3) return 0;
+        }
+        else if (c == 0)
+        {
+            if (octet != 3) return 0;
+            ip[octet] = (uint8_t)val;
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+}
+
 int net_dns_query(const char* hostname, uint8_t* ip_out)
 {
+    if (parse_ip(hostname, ip_out))
+    {
+        char ips[16];
+        ip_to_str(ip_out, ips);
+        screen_write("DNS: static IP ");
+        screen_write(ips);
+        screen_write("\n");
+        return 1;
+    }
+
     screen_write("DNS: querying ");
     screen_write(hostname);
     screen_write("\n");
