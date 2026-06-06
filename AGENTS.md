@@ -113,14 +113,16 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 ## XP Pixel-Perfect Checklist
 
 - [ ] Luna theme colors (blue/silver/olive)
-- [ ] Title bar with gradient + icon + text
+- [x] Title bar with gradient + icon + text
 - [ ] Start menu: classic two-column (pinned + all programs)
-- [ ] Taskbar with quick launch + window buttons + tray
-- [ ] Buttons: XP-style (raised/sunken 3D)
-- [ ] Scrollbars: XP-style (3D arrows + thumb)
-- [ ] Desktop: Bliss wallpaper (or gradient)
-- [ ] Window borders: classic XP thin borders (no Aero glass)
-- [ ] Remove Aero Glass: blur, transparency, glossy reflections
+- [x] Taskbar with window buttons + tray + clock
+- [x] Buttons: XP-style (raised/sunken 3D)
+- [x] Scrollbars: XP-style (3D arrows + thumb)
+- [x] Desktop: Bliss wallpaper (gradient sky + hills)
+- [x] Window borders: classic XP thin borders with rounded corners
+- [x] Remove Aero Glass: blur, transparency, glossy reflections
+- [x] Start button: pill-shaped with 4-color Windows flag logo
+- [ ] Quick Launch section (deferred — not in default XP Luna)
 
 ## Commit & Release Rules
 
