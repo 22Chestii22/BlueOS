@@ -7,6 +7,7 @@
 #include "font.h"
 #include "blu.h"
 #include "module.h"
+#include "timer.h"
 #include "paging.h"
 #include "process.h"
 
@@ -1023,8 +1024,22 @@ static void draw_taskbar(void)
 
     fb_draw_vline(tray_x, tby + 4, tby + XP_TASKBAR_H - 5, FB_RGB(0x40, 0x70, 0xD0));
 
-    char time_buf[] = "12:00 PM";
-    int time_x = tray_x + (XP_TRAY_W - 8 - (int)strlen(time_buf) * FONT_WIDTH) / 2;
+    uint8_t rtc_h = rtc_get_hours();
+    uint8_t rtc_m = rtc_get_minutes();
+    int pm = rtc_h >= 12;
+    if (rtc_h > 12) rtc_h -= 12;
+    if (rtc_h == 0) rtc_h = 12;
+    char time_buf[16];
+    time_buf[0] = '0' + rtc_h / 10;
+    time_buf[1] = '0' + rtc_h % 10;
+    time_buf[2] = ':';
+    time_buf[3] = '0' + rtc_m / 10;
+    time_buf[4] = '0' + rtc_m % 10;
+    time_buf[5] = ' ';
+    time_buf[6] = pm ? 'P' : 'A';
+    time_buf[7] = 'M';
+    time_buf[8] = 0;
+    int time_x = tray_x + (XP_TRAY_W - 8 - 8 * FONT_WIDTH) / 2;
     fb_drawstring(time_x, tby + (XP_TASKBAR_H - FONT_HEIGHT) / 2, time_buf, COL_WHITE, 0);
 
     int sdb_x = tw - XP_SHOWDESKTOP_W;

@@ -11,5 +11,8 @@ void timer_sleep(uint64_t ms);
 void timer_init(int frequency);
 void timer_start(void);
 void timer_scheduler_enable(void);
+uint8_t rtc_get_hours(void);
+uint8_t rtc_get_minutes(void);
+uint8_t rtc_get_seconds(void);
 
 #endif

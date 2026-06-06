@@ -109,3 +109,31 @@ void timer_start(void)
 {
     timer_init(100);
 }
+
+static uint8_t cmos_read(uint8_t reg)
+{
+    outb(0x70, (reg & 0x7F) | 0x80);
+    uint8_t val = inb(0x71);
+    outb(0x70, 0x00);
+    return val;
+}
+
+static uint8_t bcd_to_bin(uint8_t bcd)
+{
+    return (bcd & 0x0F) + ((bcd >> 4) * 10);
+}
+
+uint8_t rtc_get_hours(void)
+{
+    return bcd_to_bin(cmos_read(0x04));
+}
+
+uint8_t rtc_get_minutes(void)
+{
+    return bcd_to_bin(cmos_read(0x02));
+}
+
+uint8_t rtc_get_seconds(void)
+{
+    return bcd_to_bin(cmos_read(0x00));
+}

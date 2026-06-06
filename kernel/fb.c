@@ -95,6 +95,40 @@ void fb_backbuffer_alloc(void)
            NUM_BACKBUFFERS, size / 1024);
 }
 
+static int wave_sin(int x, int period)
+{
+    x = x % period;
+    if (x < 0) x += period;
+    int half = period / 2;
+    if (x > half) x = period - x;
+    if (half == 0) return 0;
+    return 4 * x * (half - x) / (half * half);
+}
+
+static void draw_cloud(int x, int y, int w, int h, uint32_t color)
+{
+    for (int row = 0; row < h; row++)
+    {
+        for (int col = 0; col < w; col++)
+        {
+            int dx = col - w / 2;
+            int dy = row - h / 2;
+            int d1 = dx * dx * 4 + dy * dy * 3;
+            int d2 = (dx - w / 4) * (dx - w / 4) * 4 + (dy + 1) * (dy + 1) * 3;
+            int d3 = (dx + w / 4) * (dx + w / 4) * 4 + (dy + 1) * (dy + 1) * 3;
+            int r2 = (w / 2) * (w / 2) * 2;
+            if (d1 < r2 || d2 < r2 / 2 || d3 < r2 / 2)
+            {
+                uint32_t bg = fb_getpixel(x + col, y + row);
+                uint8_t a = 160 - (dx < 0 ? -dx : dx) * 4;
+                if (a > 220) a = 220;
+                if (a < 30) a = 30;
+                fb_putpixel(x + col, y + row, fb_blend(color, bg, a));
+            }
+        }
+    }
+}
+
 void fb_apply_desktop_bg(void)
 {
     uint32_t w = fb_info.width;
@@ -105,6 +139,7 @@ void fb_apply_desktop_bg(void)
     uint32_t hill_far   = FB_RGB(0x8B, 0xC4, 0x6A);
     uint32_t hill_mid   = FB_RGB(0x6A, 0xB0, 0x4A);
     uint32_t hill_near  = FB_RGB(0x4A, 0x8C, 0x3F);
+    uint32_t hill_dark  = FB_RGB(0x3A, 0x78, 0x30);
 
     uint32_t horizon = h * 2 / 3;
 
@@ -125,14 +160,59 @@ void fb_apply_desktop_bg(void)
     {
         int dh = y - horizon;
         uint32_t col;
-        if (dh < hill_h / 4)
+        int far_h = hill_h / 3;
+        int mid_h = hill_h * 2 / 3;
+        if (dh < far_h)
             col = hill_far;
-        else if (dh < hill_h / 2)
+        else if (dh < mid_h)
             col = hill_mid;
         else
             col = hill_near;
-        fb_draw_hline(y, 0, w - 1, col);
+        for (uint32_t x = 0; x < w; x++)
+        {
+            int hf = far_h / 2 + far_h * wave_sin((int)x * 4, (int)w) / 3;
+            int hm = mid_h * 3 / 5 + mid_h * wave_sin((int)x * 3 + (int)w / 4, (int)w) / 4;
+            int hn = hill_h * 7 / 10 + hill_h * wave_sin((int)x * 2 + (int)w / 2, (int)w) / 5;
+            if (dh < hf)
+            {
+                if (dh > hf - 8 && dh < hf)
+                {
+                    uint32_t bg = fb_getpixel(x, y);
+                    fb_putpixel(x, y, fb_blend(col, bg, 180 - (hf - dh) * 20));
+                }
+                else
+                    fb_putpixel(x, y, col);
+            }
+            else if (dh < hm)
+            {
+                if (dh > hm - 8 && dh < hm)
+                {
+                    uint32_t bg = fb_getpixel(x, y);
+                    fb_putpixel(x, y, fb_blend(hill_mid, bg, 180 - (hm - dh) * 20));
+                }
+                else
+                    fb_putpixel(x, y, hill_mid);
+            }
+            else if (dh < hn)
+            {
+                if (dh > hn - 8 && dh < hn)
+                {
+                    uint32_t bg = fb_getpixel(x, y);
+                    fb_putpixel(x, y, fb_blend(hill_near, bg, 180 - (hn - dh) * 20));
+                }
+                else
+                    fb_putpixel(x, y, hill_near);
+            }
+            else
+            {
+                fb_putpixel(x, y, hill_dark);
+            }
+        }
     }
+
+    draw_cloud(w * 1 / 5, horizon / 5, 80, 30, FB_RGB(0xF0, 0xF4, 0xFF));
+    draw_cloud(w * 3 / 5, horizon / 4, 100, 35, FB_RGB(0xE8, 0xF0, 0xFF));
+    draw_cloud(w * 4 / 5, horizon / 3, 70, 25, FB_RGB(0xF0, 0xF4, 0xFF));
 }
 
 static void putpixel_raw(uint32_t x, uint32_t y, uint32_t color)
