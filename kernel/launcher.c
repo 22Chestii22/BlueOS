@@ -23,6 +23,7 @@ static char search_text[LAUNCHER_SEARCH_LEN];
 static int search_pos = 0;
 static int selected_result = 0;
 static int num_results = 0;
+static int results_dirty = 1;
 static char ai_generating_msg[128];
 
 static int bar_x, bar_y, bar_w = LAUNCHER_BAR_W, bar_h = LAUNCHER_BAR_H;
@@ -266,9 +267,12 @@ void launcher_init(void)
     ai_generating_msg[0] = 0;
 }
 
-/* Update search results: installed programs + AI suggestions */
+/* Update search results: installed programs + AI suggestions (cached via results_dirty) */
 static void launcher_update_results(void)
 {
+    if (!results_dirty) return;
+    results_dirty = 0;
+
     int installed_count = 0;
 
     /* Match installed programs */
@@ -325,6 +329,12 @@ static void launcher_update_results(void)
     if (selected_result < 0) selected_result = 0;
 }
 
+static void launcher_mark_bar_dirty(void)
+{
+    int dirty_h = bar_h + 4 + num_results * item_h + 20;
+    gui_mark_dirty(bar_x - 4, bar_y - 4, bar_w + 8, dirty_h);
+}
+
 static void launcher_process_key(char c)
 {
     if (c == '\033')
@@ -332,6 +342,7 @@ static void launcher_process_key(char c)
         launcher_open = 0;
         search_pos = 0;
         search_text[0] = 0;
+        results_dirty = 1;
         gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
         return;
     }
@@ -348,12 +359,12 @@ static void launcher_process_key(char c)
                 launcher_open = 0;
                 search_pos = 0;
                 search_text[0] = 0;
+                results_dirty = 1;
                 gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
                 blu_spawn(launcher_apps[idx].path);
             }
             else if (type == 1 && idx >= 0 && idx < AI_DB_SIZE)
             {
-                /* Try real Groq API, fall back to local message */
                 if (!launcher_query_groq(search_text))
                 {
                     const char* name = ai_db[idx].app_name;
@@ -365,6 +376,7 @@ static void launcher_process_key(char c)
                 }
             }
         }
+        gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
         return;
     }
 
@@ -374,9 +386,10 @@ static void launcher_process_key(char c)
         {
             search_pos--;
             search_text[search_pos] = 0;
+            results_dirty = 1;
         }
         ai_generating_msg[0] = 0;
-        gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
+        launcher_mark_bar_dirty();
         return;
     }
 
@@ -385,8 +398,9 @@ static void launcher_process_key(char c)
         search_text[search_pos++] = c;
         search_text[search_pos] = 0;
         selected_result = 0;
+        results_dirty = 1;
         ai_generating_msg[0] = 0;
-        gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
+        launcher_mark_bar_dirty();
     }
 }
 
@@ -402,6 +416,7 @@ void launcher_update(void)
             search_text[0] = 0;
             selected_result = 0;
             ai_generating_msg[0] = 0;
+            results_dirty = 1;
         }
         gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
     }
@@ -440,6 +455,7 @@ void launcher_handle_click(int mx, int my)
             launcher_open = 0;
             search_pos = 0;
             search_text[0] = 0;
+            results_dirty = 1;
             gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
             blu_spawn(launcher_apps[app_idx].path);
         }
@@ -464,6 +480,7 @@ void launcher_handle_click(int mx, int my)
     launcher_open = 0;
     search_pos = 0;
     search_text[0] = 0;
+    results_dirty = 1;
     ai_generating_msg[0] = 0;
     gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
 }
@@ -501,25 +518,8 @@ void launcher_render(void)
         tx += FONT_WIDTH;
     }
 
-    /* Blinking cursor */
-    {
-        uint32_t* bb = fb_get_backbuffer();
-        if (bb)
-        {
-            uint32_t stride = fb_info.pitch / 4;
-            for (int row = 0; row < FONT_HEIGHT; row++)
-            {
-                int py = ty + row;
-                if (py < 0 || (uint32_t)py >= sh) continue;
-                for (int col = 0; col < FONT_WIDTH; col++)
-                {
-                    int px = tx + col;
-                    if (px < 0 || (uint32_t)px >= sw) continue;
-                    bb[py * stride + px] = ~bb[py * stride + px] & 0x00FFFFFF;
-                }
-            }
-        }
-    }
+    /* Cursor bar */
+    fb_fillrect(tx, ty, 2, FONT_HEIGHT, FB_RGB(0x00, 0x58, 0xEE));
 
     /* AI generating message */
     if (ai_generating_msg[0])
