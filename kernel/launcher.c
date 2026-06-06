@@ -9,13 +9,13 @@
 #include "timer.h"
 #include "net.h"
 
-#define LAUNCHER_MAX_RESULTS 6
+#define LAUNCHER_MAX_RESULTS 8
 #define LAUNCHER_SEARCH_LEN 64
-#define LAUNCHER_BAR_W 520
-#define LAUNCHER_BAR_H 36
-#define LAUNCHER_ITEM_H 28
-#define LAUNCHER_DESC_H 14
-#define LAUNCHER_AI_RESULTS 4
+#define LAUNCHER_BAR_W 560
+#define LAUNCHER_BAR_H 40
+#define LAUNCHER_ITEM_H 30
+#define LAUNCHER_AI_RESULTS 6
+#define LAUNCHER_CURSOR_BLINK_MS 530
 
 static int launcher_open = 0;
 static volatile int launcher_hotkey_flag = 0;
@@ -25,6 +25,8 @@ static int selected_result = 0;
 static int num_results = 0;
 static int results_dirty = 1;
 static char ai_generating_msg[128];
+static int cursor_visible = 1;
+static uint64_t last_cursor_tick = 0;
 
 static int bar_x, bar_y, bar_w = LAUNCHER_BAR_W, bar_h = LAUNCHER_BAR_H;
 static int item_h = LAUNCHER_ITEM_H;
@@ -417,6 +419,8 @@ void launcher_update(void)
             selected_result = 0;
             ai_generating_msg[0] = 0;
             results_dirty = 1;
+            cursor_visible = 1;
+            last_cursor_tick = timer_get_ticks_wrapper();
         }
         gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
     }
@@ -428,6 +432,14 @@ void launcher_update(void)
             char c = keyb_getchar_wrapper();
             if (c)
                 launcher_process_key(c);
+        }
+
+        uint64_t now = timer_get_ticks_wrapper();
+        if (now - last_cursor_tick >= LAUNCHER_CURSOR_BLINK_MS)
+        {
+            last_cursor_tick = now;
+            cursor_visible = !cursor_visible;
+            launcher_mark_bar_dirty();
         }
     }
 }
@@ -485,6 +497,45 @@ void launcher_handle_click(int mx, int my)
     gui_mark_dirty(0, 0, fb_info.width, fb_info.height);
 }
 
+static void draw_magnifying_glass(int x, int y, int size, uint32_t color)
+{
+    int r = size / 2 - 1;
+    int cx = x + r + 1;
+    int cy = y + r + 1;
+    for (int row = 0; row < size; row++)
+    {
+        for (int col = 0; col < size; col++)
+        {
+            int dx = col - r, dy = row - r;
+            if (dx * dx + dy * dy >= (r - 1) * (r - 1) && dx * dx + dy * dy <= r * r)
+                fb_putpixel(x + col, y + row, color);
+        }
+    }
+    /* Handle (line from bottom-right of circle outward) */
+    int hx = cx + r / 2 + 1;
+    int hy = cy + r / 2 + 1;
+    int hl = size / 4;
+    if (hl < 2) hl = 2;
+    for (int i = 0; i < hl; i++)
+        fb_putpixel(hx + i, hy + i, color);
+    for (int i = 0; i < hl; i++)
+        fb_putpixel(hx + i + 1, hy + i, color);
+}
+
+static void draw_gradient_bar(int x, int y, int w, int h, uint32_t top, uint32_t bot)
+{
+    for (int row = 0; row < h; row++)
+    {
+        uint8_t r = ((top >> 16) & 0xFF) +
+            (((uint32_t)(((bot >> 16) & 0xFF) - ((top >> 16) & 0xFF))) * row / (h - 1 < 1 ? 1 : h - 1));
+        uint8_t g = ((top >> 8) & 0xFF) +
+            (((uint32_t)(((bot >> 8) & 0xFF) - ((top >> 8) & 0xFF))) * row / (h - 1 < 1 ? 1 : h - 1));
+        uint8_t b = (top & 0xFF) +
+            (((uint32_t)((bot & 0xFF) - (top & 0xFF))) * row / (h - 1 < 1 ? 1 : h - 1));
+        fb_draw_hline(y + row, x, x + w - 1, FB_RGB(r, g, b));
+    }
+}
+
 void launcher_render(void)
 {
     if (!launcher_open) return;
@@ -494,48 +545,72 @@ void launcher_render(void)
     int sw = fb_info.width;
     int sh = fb_info.height;
 
-    /* Semi-transparent backdrop */
-    fb_fillrect_alpha(0, 0, sw, sh, COL_BLACK, 80);
+    /* Dark backdrop */
+    fb_fillrect_alpha(0, 0, sw, sh, COL_BLACK, 200);
 
     bar_x = (sw - bar_w) / 2;
     bar_y = sh / 5;
 
-    /* Search bar */
-    fb_fillrect(bar_x, bar_y, bar_w, bar_h, COL_WHITE);
-    draw_outline(bar_x, bar_y, bar_w, bar_h, FB_RGB(0x00, 0x58, 0xEE));
+    /* Shadow under search bar */
+    fb_fillrect_alpha(bar_x + 3, bar_y + 3, bar_w, bar_h, COL_BLACK, 60);
 
-    int tx = bar_x + 8;
+    /* Search bar with gradient */
+    draw_gradient_bar(bar_x, bar_y, bar_w, bar_h,
+                      FB_RGB(0xF5, 0xF5, 0xFF), FB_RGB(0xE0, 0xE4, 0xF0));
+    draw_outline(bar_x, bar_y, bar_w, bar_h, FB_RGB(0x08, 0x31, 0xD9));
+
+    int tx = bar_x + 12;
     int ty = bar_y + (bar_h - FONT_HEIGHT) / 2;
 
-    /* Draw search icon */
-    fb_drawchar(tx, ty, '>', FB_RGB(0x00, 0x80, 0x00), COL_WHITE);
-    tx += FONT_WIDTH * 2;
+    /* Magnifying glass icon */
+    draw_magnifying_glass(tx, ty + 2, 14, FB_RGB(0x60, 0x70, 0xA0));
+    tx += 22;
+
+    /* Placeholder text when empty */
+    if (search_pos == 0)
+    {
+        fb_drawstring(tx, ty, "Search programs and AI apps...",
+                      FB_RGB(0x99, 0x99, 0xAA), 0);
+    }
 
     /* Draw input text */
     for (int i = 0; i < search_pos; i++)
     {
-        fb_drawchar(tx, ty, search_text[i], COL_BLACK, COL_WHITE);
+        fb_drawchar(tx, ty, search_text[i], COL_BLACK, 0);
         tx += FONT_WIDTH;
     }
 
-    /* Cursor bar */
-    fb_fillrect(tx, ty, 2, FONT_HEIGHT, FB_RGB(0x00, 0x58, 0xEE));
+    /* Blinking cursor */
+    if (cursor_visible && (search_pos > 0 || (timer_get_ticks_wrapper() / 100) % 2 == 0))
+        fb_fillrect(tx, ty + 1, 2, FONT_HEIGHT - 2, FB_RGB(0x08, 0x31, 0xD9));
+
+    /* Keyboard shortcut hint */
+    {
+        uint32_t hint_col = FB_RGB(0x88, 0x88, 0x99);
+        int hint_y = bar_y + bar_h + 4;
+        fb_drawstring(bar_x + 4, hint_y,
+                      "\x18\x19  Navigate    Enter  Open    Esc  Close",
+                      hint_col, 0);
+    }
 
     /* AI generating message */
     if (ai_generating_msg[0])
     {
-        int msg_y = bar_y + bar_h + 8;
-        fb_fillrect(bar_x, msg_y, bar_w, item_h, FB_RGB(0xFF, 0xF0, 0xE0));
-        draw_outline(bar_x, msg_y, bar_w, item_h, FB_RGB(0xCC, 0x88, 0x44));
-        fb_drawstring(bar_x + 8, msg_y + (item_h - FONT_HEIGHT) / 2, ai_generating_msg, FB_RGB(0x88, 0x44, 0x00), FB_RGB(0xFF, 0xF0, 0xE0));
+        int msg_y = bar_y + bar_h + 20;
+        int msg_h = item_h + 8;
+        fb_fillrect(bar_x, msg_y, bar_w, msg_h, FB_RGB(0xFF, 0xF8, 0xE8));
+        draw_outline(bar_x, msg_y, bar_w, msg_h, FB_RGB(0xD4, 0xA0, 0x50));
+        fb_drawstring(bar_x + 10, msg_y + (msg_h - FONT_HEIGHT) / 2,
+                      ai_generating_msg, FB_RGB(0x88, 0x55, 0x00),
+                      FB_RGB(0xFF, 0xF8, 0xE8));
         return;
     }
 
     /* Results list */
     if (num_results > 0)
     {
-        int list_y = bar_y + bar_h + 4;
-        int list_h = num_results * item_h;
+        int list_y = bar_y + bar_h + 20;
+        int list_h = num_results * item_h + 2;
 
         fb_fillrect(bar_x, list_y, bar_w, list_h, COL_WHITE);
         draw_outline(bar_x, list_y, bar_w, list_h, FB_RGB(0x7F, 0x9D, 0xB9));
@@ -550,13 +625,13 @@ void launcher_render(void)
         {
             int type = launcher_result_type[i];
             int app_idx = launcher_result_idx[i];
-            int iy = list_y + i * item_h;
+            int iy = list_y + 1 + i * item_h;
             int is_selected = (i == selected_result);
             uint32_t bg, fg;
 
             if (is_selected)
             {
-                bg = type == 0 ? FB_RGB(0x31, 0x6A, 0xC5) : FB_RGB(0x70, 0x90, 0x30);
+                bg = type == 0 ? FB_RGB(0x31, 0x6A, 0xC5) : FB_RGB(0x60, 0x80, 0x30);
                 fg = COL_WHITE;
             }
             else
@@ -565,42 +640,43 @@ void launcher_render(void)
                 fg = COL_BLACK;
             }
 
-            fb_fillrect(bar_x + 2, iy, bar_w - 4, item_h, bg);
+            fb_fillrect(bar_x + 2, iy, bar_w - 4, item_h - 1, bg);
 
             if (type == 1)
             {
-                /* AI suggestion — show small sparkle icon */
                 const ai_suggestion_t* ai = &ai_db[app_idx];
-                int icon_x = bar_x + 6;
-                int icon_y = iy + (item_h - 12) / 2;
-                fb_fillrect(icon_x, icon_y, 12, 12, FB_RGB(ai->icon_r, ai->icon_g, ai->icon_b));
-                fb_drawstring(bar_x + 22, iy + (item_h - FONT_HEIGHT) / 2, ai->app_name, fg, bg);
+                int icon_x = bar_x + 8;
+                int icon_y = iy + (item_h - 14) / 2;
+                fb_fillrect(icon_x, icon_y, 14, 14,
+                            FB_RGB(ai->icon_r, ai->icon_g, ai->icon_b));
+                fb_drawstring(bar_x + 28, iy + (item_h - FONT_HEIGHT) / 2,
+                              ai->app_name, fg, bg);
             }
             else
             {
-                /* Installed program */
-                int icon_x = bar_x + 6;
-                int icon_y = iy + (item_h - 14) / 2;
-                fb_fillrect(icon_x, icon_y, 14, 14, FB_RGB(0x30, 0x80, 0xD0));
-                draw_outline(icon_x, icon_y, 14, 14, FB_RGB(0x20, 0x60, 0xB0));
+                int icon_x = bar_x + 8;
+                int icon_y = iy + (item_h - 16) / 2;
+                fb_fillrect(icon_x, icon_y, 16, 16, FB_RGB(0x30, 0x80, 0xD0));
+                draw_outline(icon_x, icon_y, 16, 16, FB_RGB(0x20, 0x60, 0xB0));
 
-                int tx2 = bar_x + 24;
                 char label[64];
                 const char* name = launcher_apps[app_idx].name;
                 int nl = strlen(name);
                 if (nl > 50) nl = 50;
                 memcpy(label, name, nl);
                 label[nl] = 0;
-                fb_drawstring(tx2, iy + (item_h - FONT_HEIGHT) / 2, label, fg, bg);
+                fb_drawstring(bar_x + 28, iy + (item_h - FONT_HEIGHT) / 2,
+                              label, fg, bg);
             }
         }
     }
     else if (search_pos > 0)
     {
-        int list_y = bar_y + bar_h + 4;
-        fb_fillrect(bar_x, list_y, bar_w, 60, COL_WHITE);
-        draw_outline(bar_x, list_y, bar_w, 60, FB_RGB(0x7F, 0x9D, 0xB9));
-        fb_drawstring(bar_x + 8, list_y + 8, "Searching AI knowledge base...", FB_RGB(0x80, 0x80, 0x80), COL_WHITE);
+        int msg_y = bar_y + bar_h + 20;
+        fb_fillrect(bar_x, msg_y, bar_w, 44, COL_WHITE);
+        draw_outline(bar_x, msg_y, bar_w, 44, FB_RGB(0x7F, 0x9D, 0xB9));
+        fb_drawstring(bar_x + 12, msg_y + 14, "No matching programs or AI apps",
+                      FB_RGB(0x99, 0x99, 0x99), COL_WHITE);
     }
 }
 
