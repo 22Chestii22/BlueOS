@@ -41,6 +41,20 @@ static uint64_t get_kernel_cr3(void)
     return kernel_cr3;
 }
 
+/* Hotkey callback (Ctrl+Space launcher) */
+static void (*hotkey_callback)(void) = NULL;
+
+static void hotkey_triggered(void)
+{
+    if (hotkey_callback)
+        hotkey_callback();
+}
+
+static void register_hotkey_cb(void (*func)(void))
+{
+    hotkey_callback = func;
+}
+
 /* Mouse callback registration and wrappers */
 static int (*registered_mouse_get_x)(void) = NULL;
 static int (*registered_mouse_get_y)(void) = NULL;
@@ -136,6 +150,9 @@ kernel_api_t kernel_api =
     .register_mouse_get_y = reg_mouse_get_y,
     .register_mouse_get_buttons = reg_mouse_get_buttons,
     .register_mouse_is_present = reg_mouse_is_present,
+
+    .hotkey_triggered = hotkey_triggered,
+    .register_hotkey_callback = register_hotkey_cb,
 };
 
 char keyb_getchar_wrapper(void)

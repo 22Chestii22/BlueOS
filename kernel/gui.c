@@ -10,6 +10,7 @@
 #include "timer.h"
 #include "paging.h"
 #include "process.h"
+#include "launcher.h"
 
 int xp_theme = XP_THEME_BLUE;
 
@@ -70,6 +71,8 @@ static void mark_screen_dirty(int x, int y, int w, int h)
     screen_dirty_w = x2 - x1;
     screen_dirty_h = y2 - y1;
 }
+
+void gui_mark_dirty(int x, int y, int w, int h) { mark_screen_dirty(x, y, w, h); }
 
 static void mark_window_dirty(int win_id, int x, int y, int w, int h)
 {
@@ -1426,6 +1429,12 @@ static void handle_click(void)
     if (mx < 0 || (uint32_t)mx >= fb_info.width || my < 0 || (uint32_t)my >= fb_info.height)
         return;
 
+    if (launcher_is_open())
+    {
+        launcher_handle_click(mx, my);
+        return;
+    }
+
     if (start_menu_open)
     {
         int tby = fb_info.height - XP_TASKBAR_H;
@@ -1826,6 +1835,8 @@ void gui_render(void)
 {
     if (!initialized) return;
 
+    launcher_update();
+
     uint8_t buttons = mouse_get_buttons_wrapper();
     int mx = mouse_get_x_wrapper();
     int my = mouse_get_y_wrapper();
@@ -2006,6 +2017,7 @@ void gui_render(void)
 
     draw_taskbar();
     draw_start_menu();
+    launcher_render();
 
     /* Finish drag and resize */
     for (int i = 0; i < num_windows; i++)

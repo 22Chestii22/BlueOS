@@ -120,4 +120,6 @@ void gui_set_window_minimized(int win_id, int minimized);
 
 extern volatile int cmd_should_exit;
 
+void gui_mark_dirty(int x, int y, int w, int h);
+
 #endif

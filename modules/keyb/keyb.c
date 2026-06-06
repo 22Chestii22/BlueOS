@@ -14,6 +14,7 @@ static volatile int key_buffer_tail = 0;
 static volatile int shift_pressed = 0;
 static volatile int caps_lock = 0;
 static volatile int extended = 0;
+static volatile int ctrl_pressed = 0;
 
 static const char scancode_ascii[] = {
     [0x00] = 0,  [0x01] = 0x1B, [0x02] = '1',   [0x03] = '2',
@@ -88,6 +89,10 @@ void keyboard_handler(void)
         shift_pressed = 0;
     else if (scancode == 0x3A)
         caps_lock = !caps_lock;
+    else if (scancode == 0x1D)
+        ctrl_pressed = 1;
+    else if (scancode == 0x9D)
+        ctrl_pressed = 0;
 
     if (scancode & 0x80) return;
 
@@ -98,6 +103,13 @@ void keyboard_handler(void)
             c = scancode_shift[scancode];
         else
             c = scancode_ascii[scancode];
+    }
+
+    if (c == ' ' && ctrl_pressed)
+    {
+        if (api && api->hotkey_triggered)
+            api->hotkey_triggered();
+        return;
     }
 
     if (c)

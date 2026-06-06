@@ -21,6 +21,7 @@
 #include "pci.h"
 #include "rtl8139.h"
 #include "net.h"
+#include "launcher.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -141,6 +142,7 @@ void kernel_main(void* mbd, uint32_t magic)
 
     vga_init();
     gui_init();
+    launcher_init();
 
     ata_module_init(&kernel_api);
     fat_module_init(&kernel_api);
@@ -222,6 +224,7 @@ void kernel_main_bootloader(boot_info_t* boot_info)
 
     vga_init();
     gui_init();
+    launcher_init();
 
     ata_module_init(&kernel_api);
     fat_module_init(&kernel_api);

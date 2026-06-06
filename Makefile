@@ -39,6 +39,7 @@ KERNEL_SRCS = \
     kernel/vga.c \
     kernel/fb.c \
     kernel/gui.c \
+    kernel/launcher.c \
     kernel/timer.c \
     kernel/pci.c \
     kernel/rtl8139.c \

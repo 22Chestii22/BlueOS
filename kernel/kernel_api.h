@@ -74,6 +74,10 @@ typedef struct
     void (*register_mouse_get_y)(int (*func)(void));
     void (*register_mouse_get_buttons)(uint8_t (*func)(void));
     void (*register_mouse_is_present)(int (*func)(void));
+
+    /* Hotkey callback for Ctrl+Space launcher */
+    void (*hotkey_triggered)(void);
+    void (*register_hotkey_callback)(void (*func)(void));
 } kernel_api_t;
 
 #endif
