@@ -18,7 +18,7 @@
 #define XP_TRAY_W        160
 #define XP_SHOWDESKTOP_W 4
 
-#define XP_SM_HEADER_H   50
+#define XP_SM_HEADER_H   62
 #define XP_SM_LEFT_W     200
 #define XP_SM_RIGHT_W    150
 #define XP_SM_TOTAL_W    (XP_SM_LEFT_W + XP_SM_RIGHT_W)

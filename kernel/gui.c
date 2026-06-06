@@ -296,7 +296,7 @@ static void draw_xp_title_bar(gui_window_t* w, int active)
     int x = w->x, y = w->y, tw = w->w;
     int title_h = GUI_TITLE_HEIGHT;
 
-    static const uint8_t cr_mask[7] = {6, 5, 4, 3, 2, 1, 0};
+    static const uint8_t cr_mask[7] = {6, 6, 5, 4, 3, 1, 0};
 
     for (int row = 0; row < title_h - 1; row++)
     {
@@ -325,112 +325,146 @@ static void draw_xp_title_bar(gui_window_t* w, int active)
         fb_draw_hline(y + row, x + indent, x + tw - 1 - indent, color);
     }
 
-    fb_draw_hline(y + title_h - 1, x + 6, x + tw - 1 - 6, active ? COL_XP_TITLE_BORDER : FB_RGB(0x90, 0x90, 0x90));
+    fb_draw_hline(y + title_h - 1, x, x + tw - 1, active ? COL_XP_TITLE_BORDER : FB_RGB(0x90, 0x90, 0x90));
 
     int mmx = mouse_get_x_wrapper();
     int mmy = mouse_get_y_wrapper();
-    int btn_sz = 22;
-    int btn_top = y + (title_h - btn_sz) / 2 - 1;
-    int btn_gap = 1;
-    int btn_right = x + tw - 2;
+    int btn_sz = 20;
+    int btn_top = y + (title_h - btn_sz) / 2;
+    int btn_gap = 2;
+    int btn_right = x + tw - 3;
 
     int close_x = btn_right - btn_sz;
     int max_x = close_x - btn_sz - btn_gap;
     int min_x = max_x - btn_sz - btn_gap;
 
     w->btn_close_hover = (mmx >= close_x && mmx < close_x + btn_sz &&
-                          mmy >= btn_top && mmy < btn_top + btn_sz) && active;
+                          mmy >= btn_top && mmy < btn_top + btn_sz);
     w->btn_max_hover = (mmx >= max_x && mmx < max_x + btn_sz &&
-                        mmy >= btn_top && mmy < btn_top + btn_sz) && active;
+                        mmy >= btn_top && mmy < btn_top + btn_sz);
     w->btn_min_hover = (mmx >= min_x && mmx < min_x + btn_sz &&
-                        mmy >= btn_top && mmy < btn_top + btn_sz) && active;
+                        mmy >= btn_top && mmy < btn_top + btn_sz);
 
-    if (active)
+    int ver_label_y = y + (title_h - FONT_HEIGHT) / 2;
+
     {
         int icon_x = x + 4;
         int icon_y = y + 3;
         int icon_sz = 16;
-        fb_fillrect(icon_x, icon_y, icon_sz, icon_sz, COL_XP_TITLE_TEXT);
-        fb_draw_rect_outline(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0x00, 0x20, 0x70));
-        fb_fillrect(icon_x + 2, icon_y + 2, icon_sz - 4, icon_sz - 4, COL_XP_BTN_MAX_FACE);
-        for (int i = 0; i < 4; i++)
+        if (active)
         {
-            fb_draw_hline(icon_y + 5 + i * 3, icon_x + 4, icon_x + icon_sz - 5, FB_RGB(0x60, 0x90, 0xD0));
+            fb_fillrect(icon_x, icon_y, icon_sz, icon_sz, COL_XP_TITLE_TEXT);
+            fb_draw_rect_outline(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0x00, 0x20, 0x70));
+            fb_fillrect(icon_x + 2, icon_y + 2, icon_sz - 4, icon_sz - 4, COL_XP_BTN_MAX_FACE);
+            for (int i = 0; i < 4; i++)
+                fb_draw_hline(icon_y + 5 + i * 3, icon_x + 4, icon_x + icon_sz - 5, FB_RGB(0x60, 0x90, 0xD0));
+            draw_xp_title_text(icon_x + icon_sz + 4, ver_label_y, w->title, COL_XP_TITLE_TEXT, FB_RGB(0x00, 0x20, 0x70));
         }
-        int tx = icon_x + icon_sz + 4;
-        draw_xp_title_text(tx, y + 3, w->title, COL_XP_TITLE_TEXT, FB_RGB(0x00, 0x20, 0x70));
-
-        /* Close button */
+        else
         {
-            uint32_t face = w->btn_close_hover ? COL_XP_BTN_CLOSE_HOV : COL_XP_BTN_CLOSE_FACE;
-            fb_draw_rect_outline(close_x, btn_top, btn_sz, btn_sz, w->btn_close_hover ? FB_RGB(0xAA, 0x30, 0x00) : FB_RGB(0x88, 0x40, 0x20));
-            fb_fillrect(close_x + 1, btn_top + 1, btn_sz - 2, btn_sz - 2, face);
-            fb_draw_hline(btn_top + 1, close_x + 1, close_x + btn_sz - 2, w->btn_close_hover ? FB_RGB(0xFF, 0x80, 0x40) : FB_RGB(0xDD, 0x70, 0x40));
-            fb_draw_vline(close_x + 1, btn_top + 1, btn_top + btn_sz - 2, w->btn_close_hover ? FB_RGB(0xFF, 0x80, 0x40) : FB_RGB(0xDD, 0x70, 0x40));
-            /* White X */
-            int cx = close_x + btn_sz / 2;
-            int cy = btn_top + btn_sz / 2;
-            for (int d = -4; d <= 4; d++)
+            fb_fillrect(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0xA0, 0xB0, 0xD0));
+            fb_draw_rect_outline(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0x60, 0x70, 0xA0));
+            fb_fillrect(icon_x + 2, icon_y + 2, icon_sz - 4, icon_sz - 4, FB_RGB(0xC0, 0xCC, 0xE0));
+            for (int i = 0; i < 4; i++)
+                fb_draw_hline(icon_y + 5 + i * 3, icon_x + 4, icon_x + icon_sz - 5, FB_RGB(0x90, 0xA0, 0xC0));
+            draw_xp_title_text(icon_x + icon_sz + 4, ver_label_y, w->title, COL_XP_TITLE_INACT_TEXT, 0);
+        }
+    }
+
+    /* Close button — always drawn */
+    {
+        uint32_t border_col, face, hl;
+        if (active)
+        {
+            face = w->btn_close_hover ? COL_XP_BTN_CLOSE_HOV : COL_XP_BTN_CLOSE_FACE;
+            border_col = w->btn_close_hover ? FB_RGB(0xAA, 0x30, 0x00) : FB_RGB(0x88, 0x40, 0x20);
+            hl = w->btn_close_hover ? FB_RGB(0xFF, 0x80, 0x40) : FB_RGB(0xDD, 0x70, 0x40);
+        }
+        else
+        {
+            face = FB_RGB(0xD0, 0xD0, 0xE0);
+            border_col = FB_RGB(0x80, 0x80, 0xA0);
+            hl = FB_RGB(0xE0, 0xE0, 0xF0);
+        }
+        fb_draw_rect_outline(close_x, btn_top, btn_sz, btn_sz, border_col);
+        fb_fillrect(close_x + 1, btn_top + 1, btn_sz - 2, btn_sz - 2, face);
+        fb_draw_hline(btn_top + 1, close_x + 1, close_x + btn_sz - 2, hl);
+        fb_draw_vline(close_x + 1, btn_top + 1, btn_top + btn_sz - 2, hl);
+        int cx2 = close_x + btn_sz / 2;
+        int cy2 = btn_top + btn_sz / 2;
+        uint32_t x_col = active ? COL_WHITE : FB_RGB(0x80, 0x80, 0xA0);
+        for (int d = -5; d <= 5; d++)
+        {
+            fb_putpixel(cx2 + d, cy2 + d, x_col);
+            fb_putpixel(cx2 + d, cy2 - d, x_col);
+        }
+    }
+
+    if (!w->minimized)
+    {
+        /* Maximize button */
+        {
+            uint32_t face, border_col;
+            if (active)
             {
-                fb_putpixel(cx + d, cy + d, COL_WHITE);
-                fb_putpixel(cx + d, cy - d, COL_WHITE);
+                face = w->btn_max_hover ? COL_XP_BTN_HOVER : COL_XP_BTN_MAX_FACE;
+                border_col = FB_RGB(0x30, 0x50, 0x90);
             }
-        }
-
-        if (!w->minimized)
-        {
-            /* Maximize button */
+            else
             {
-                uint32_t face = w->btn_max_hover ? COL_XP_BTN_HOVER : COL_XP_BTN_MAX_FACE;
-                fb_draw_rect_outline(max_x, btn_top, btn_sz, btn_sz, FB_RGB(0x30, 0x50, 0x90));
-                fb_fillrect(max_x + 1, btn_top + 1, btn_sz - 2, btn_sz - 2, face);
+                face = FB_RGB(0xC8, 0xD0, 0xE0);
+                border_col = FB_RGB(0x70, 0x80, 0xA0);
+            }
+            fb_draw_rect_outline(max_x, btn_top, btn_sz, btn_sz, border_col);
+            fb_fillrect(max_x + 1, btn_top + 1, btn_sz - 2, btn_sz - 2, face);
+            if (active)
+            {
                 fb_draw_hline(btn_top + 1, max_x + 1, max_x + btn_sz - 2, FB_RGB(0x70, 0xA0, 0xE0));
                 fb_draw_vline(max_x + 1, btn_top + 1, btn_top + btn_sz - 2, FB_RGB(0x70, 0xA0, 0xE0));
                 fb_draw_hline(btn_top + btn_sz - 2, max_x + 2, max_x + btn_sz - 3, FB_RGB(0x20, 0x40, 0x80));
                 fb_draw_vline(max_x + btn_sz - 2, btn_top + 2, btn_top + btn_sz - 3, FB_RGB(0x20, 0x40, 0x80));
-
-                int mx_cx = max_x + btn_sz / 2;
-                int mx_cy = btn_top + btn_sz / 2;
-                if (w->maximized)
-                {
-                    fb_draw_rect_outline(mx_cx - 6, mx_cy - 5, 8, 7, COL_WHITE);
-                    fb_draw_rect_outline(mx_cx - 4, mx_cy - 7, 8, 7, FB_RGB(0xE0, 0xE8, 0xF0));
-                    fb_fillrect(mx_cx - 4, mx_cy - 7, 8, 2, COL_WHITE);
-                }
-                else
-                {
-                    fb_draw_rect_outline(mx_cx - 5, mx_cy - 5, 10, 9, COL_WHITE);
-                }
+            }
+            int mx_cx = max_x + btn_sz / 2;
+            int mx_cy = btn_top + btn_sz / 2;
+            uint32_t g_col = active ? COL_WHITE : FB_RGB(0x80, 0x90, 0xB0);
+            if (w->maximized)
+            {
+                fb_draw_rect_outline(mx_cx - 6, mx_cy - 5, 8, 7, g_col);
+                fb_fillrect(mx_cx - 6, mx_cy - 5, 8, 2, g_col);
+                fb_draw_rect_outline(mx_cx - 4, mx_cy - 7, 8, 7, g_col);
+                fb_fillrect(mx_cx - 4, mx_cy - 7, 8, 2, g_col);
+            }
+            else
+            {
+                fb_draw_rect_outline(mx_cx - 5, mx_cy - 5, 10, 9, g_col);
+                fb_fillrect(mx_cx - 5, mx_cy - 5, 10, 2, g_col);
             }
         }
 
-        if (!w->minimized)
+        /* Minimize button */
         {
-            /* Minimize button */
+            uint32_t face, border_col;
+            if (active)
             {
-                uint32_t face = w->btn_min_hover ? COL_XP_BTN_HOVER : COL_XP_BTN_MIN_FACE;
-                fb_draw_rect_outline(min_x, btn_top, btn_sz, btn_sz, FB_RGB(0x30, 0x50, 0x90));
-                fb_fillrect(min_x + 1, btn_top + 1, btn_sz - 2, btn_sz - 2, face);
+                face = w->btn_min_hover ? COL_XP_BTN_HOVER : COL_XP_BTN_MIN_FACE;
+                border_col = FB_RGB(0x30, 0x50, 0x90);
+            }
+            else
+            {
+                face = FB_RGB(0xC8, 0xD0, 0xE0);
+                border_col = FB_RGB(0x70, 0x80, 0xA0);
+            }
+            fb_draw_rect_outline(min_x, btn_top, btn_sz, btn_sz, border_col);
+            fb_fillrect(min_x + 1, btn_top + 1, btn_sz - 2, btn_sz - 2, face);
+            if (active)
+            {
                 fb_draw_hline(btn_top + 1, min_x + 1, min_x + btn_sz - 2, FB_RGB(0x70, 0xA0, 0xE0));
                 fb_draw_vline(min_x + 1, btn_top + 1, btn_top + btn_sz - 2, FB_RGB(0x70, 0xA0, 0xE0));
                 fb_draw_hline(btn_top + btn_sz - 2, min_x + 2, min_x + btn_sz - 3, FB_RGB(0x20, 0x40, 0x80));
                 fb_draw_vline(min_x + btn_sz - 2, btn_top + 2, btn_top + btn_sz - 3, FB_RGB(0x20, 0x40, 0x80));
-                /* Minimize line */
-                fb_fillrect(min_x + 5, btn_top + btn_sz - 6, btn_sz - 10, 2, COL_WHITE);
             }
+            fb_fillrect(min_x + 5, btn_top + btn_sz - 6, btn_sz - 10, 2, active ? COL_WHITE : FB_RGB(0x80, 0x90, 0xB0));
         }
-    }
-    else
-    {
-        int icon_x = x + 4;
-        int icon_y = y + 3;
-        int icon_sz = 16;
-        fb_fillrect(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0xA0, 0xB0, 0xD0));
-        fb_draw_rect_outline(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0x60, 0x70, 0xA0));
-        fb_fillrect(icon_x + 2, icon_y + 2, icon_sz - 4, icon_sz - 4, FB_RGB(0xC0, 0xCC, 0xE0));
-        for (int i = 0; i < 4; i++)
-            fb_draw_hline(icon_y + 5 + i * 3, icon_x + 4, icon_x + icon_sz - 5, FB_RGB(0x90, 0xA0, 0xC0));
-        draw_xp_title_text(icon_x + icon_sz + 4, y + 3, w->title, COL_XP_TITLE_INACT_TEXT, 0);
     }
 }
 
@@ -573,7 +607,7 @@ static void draw_xp_scrollbar(int x, int y, int w, int h, int scroll_off, int sc
     if (track_h < 4) track_h = 4;
 
     uint32_t face = COL_XP_BTN_FACE;
-    uint32_t border = FB_RGB(0x80, 0x80, 0x80);
+    uint32_t border = COL_XP_BTN_BORDER;
     uint32_t arrow = FB_RGB(0x60, 0x60, 0x60);
 
     fb_fillrect(x, y, w, h, face);
@@ -585,10 +619,12 @@ static void draw_xp_scrollbar(int x, int y, int w, int h, int scroll_off, int sc
     fb_draw_vline(x + 1, y + 2, y + btn_h - 3, COL_WHITE);
     int cx = x + w / 2;
     int cy = y + btn_h / 2;
-    for (int d = -2; d <= 2; d++)
-        fb_putpixel(cx + d, cy - 2 - (d < 0 ? -d : d), arrow);
-    for (int d = -1; d <= 1; d++)
-        fb_putpixel(cx + d, cy - 1, arrow);
+    for (int r = 0; r < 3; r++)
+    {
+        int y_row = cy - 2 + r;
+        for (int d = -r; d <= r; d++)
+            fb_putpixel(cx + d, y_row, arrow);
+    }
 
     /* Down button */
     int dy = y + h - btn_h;
@@ -596,8 +632,12 @@ static void draw_xp_scrollbar(int x, int y, int w, int h, int scroll_off, int sc
     fb_fillrect(x + 1, dy + 1, w - 2, btn_h - 2, face);
     fb_draw_hline(dy + 1, x + 2, x + w - 3, COL_WHITE);
     fb_draw_vline(x + 1, dy + 2, dy + btn_h - 3, COL_WHITE);
-    for (int d = -2; d <= 2; d++)
-        fb_putpixel(cx + d, dy + btn_h - 2 + (d < 0 ? -d : d), arrow);
+    for (int r = 0; r < 3; r++)
+    {
+        int y_row = dy + btn_h - 1 - r;
+        for (int d = -r; d <= r; d++)
+            fb_putpixel(cx + d, y_row, arrow);
+    }
 
     /* Track */
     uint32_t track_bg = FB_RGB(0xE8, 0xE8, 0xE8);
@@ -749,6 +789,7 @@ static void draw_start_button(int x, int y, int w, int h, int hovered)
         else if (bot_dist < pill_r)
             indent = pill_r - 1 - bot_dist;
         int x0 = x + indent;
+        int x1 = x + w - 1 - indent;
 
         uint8_t r = ((top >> 16) & 0xFF) +
             (((uint32_t)(((bottom >> 16) & 0xFF) - ((top >> 16) & 0xFF))) * row / (h - 1));
@@ -756,42 +797,34 @@ static void draw_start_button(int x, int y, int w, int h, int hovered)
             (((uint32_t)(((bottom >> 8) & 0xFF) - ((top >> 8) & 0xFF))) * row / (h - 1));
         uint8_t b = (top & 0xFF) +
             (((uint32_t)((bottom & 0xFF) - (top & 0xFF))) * row / (h - 1));
-        fb_draw_hline(y + row, x0, x + w - 1, FB_RGB(r, g, b));
-
-        if (indent > 0 && (top_dist < pill_r || bot_dist < pill_r))
-        {
-            int base_r = (top_dist < pill_r) ? ((top >> 16) & 0xFF) : ((bottom >> 16) & 0xFF);
-            int base_g = (top_dist < pill_r) ? ((top >> 8) & 0xFF) : ((bottom >> 8) & 0xFF);
-            int base_b = (top_dist < pill_r) ? (top & 0xFF) : (bottom & 0xFF);
-            for (int px = 0; px < indent; px++)
-            {
-                int shade = ((indent - px) * 18) / indent;
-                int pr = base_r - shade;
-                int pg = base_g - shade;
-                int pb = base_b - shade;
-                if (pr < 0) pr = 0;
-                if (pg < 0) pg = 0;
-                if (pb < 0) pb = 0;
-                fb_putpixel(x + px, y + row, FB_RGB(pr, pg, pb));
-            }
-        }
+        fb_draw_hline(y + row, x0, x1, FB_RGB(r, g, b));
     }
 
-    fb_draw_hline(y, x + pill_r, x + w - 1, FB_RGB(0x70, 0xE0, 0x30));
-    fb_draw_vline(x + pill_r - 1, y + pill_r, y + h - 1 - pill_r, FB_RGB(0x70, 0xE0, 0x30));
-    fb_draw_hline(y + h - 1, x + pill_r, x + w - 1, FB_RGB(0x18, 0x50, 0x00));
-    fb_draw_vline(x + w - 1, y + pill_r - 1, y + h - 1 - pill_r, FB_RGB(0x18, 0x50, 0x00));
+    /* 3D edge highlights following the pill curve */
+    for (int d = 0; d < pill_r; d++)
+    {
+        int top_indent = pill_r - 1 - d;
+        fb_putpixel(x + top_indent, y + d, FB_RGB(0x70, 0xE0, 0x30));
+        fb_putpixel(x + w - 1 - top_indent, y + d, FB_RGB(0x18, 0x50, 0x00));
+        int bot_row = h - 1 - d;
+        fb_putpixel(x + top_indent, y + bot_row, FB_RGB(0x18, 0x50, 0x00));
+        fb_putpixel(x + w - 1 - top_indent, y + bot_row, FB_RGB(0x70, 0xE0, 0x30));
+    }
+    fb_draw_hline(y + pill_r, x, x + w - 1, FB_RGB(0x70, 0xE0, 0x30));
+    fb_draw_vline(x, y + pill_r, y + h - 1 - pill_r, FB_RGB(0x70, 0xE0, 0x30));
+    fb_draw_hline(y + h - 1 - pill_r, x, x + w - 1, FB_RGB(0x18, 0x50, 0x00));
+    fb_draw_vline(x + w - 1, y + pill_r, y + h - 1 - pill_r, FB_RGB(0x18, 0x50, 0x00));
 
     /* XP Windows flag logo */
     int lx = x + 8;
     int ly = y + (h - 16) / 2;
-    fb_fillrect(lx, ly, 8, 8, FB_RGB(0xFF, 0x40, 0x40));
-    fb_fillrect(lx + 8, ly, 8, 8, FB_RGB(0x40, 0xC0, 0x40));
-    fb_fillrect(lx, ly + 8, 8, 8, FB_RGB(0x40, 0x80, 0xFF));
-    fb_fillrect(lx + 8, ly + 8, 8, 8, FB_RGB(0xFF, 0xD0, 0x00));
+    fb_fillrect(lx, ly, 8, 8, FB_RGB(0xE8, 0x50, 0x50));
+    fb_fillrect(lx + 8, ly, 8, 8, FB_RGB(0x50, 0xB0, 0x50));
+    fb_fillrect(lx, ly + 8, 8, 8, FB_RGB(0x50, 0x80, 0xE8));
+    fb_fillrect(lx + 8, ly + 8, 8, 8, FB_RGB(0xE8, 0xC8, 0x20));
     fb_draw_rect_outline(lx, ly, 16, 16, COL_WHITE);
 
-    draw_xp_title_text(lx + 20, y + (h - FONT_HEIGHT) / 2 + 1, "start", COL_WHITE, 0);
+    draw_xp_title_text(lx + 20, y + (h - FONT_HEIGHT) / 2, "start", COL_WHITE, 0);
 }
 
 static void draw_start_menu(void)
@@ -815,16 +848,16 @@ static void draw_start_menu(void)
     /* Menu border */
     fb_draw_rect_outline(mx, my, mw, total_h, FB_RGB(0x55, 0x55, 0x55));
 
-    /* Header - same gradient as title bar */
+    /* Header - reversed gradient (dark top → light bottom, opposite of title bar) */
     int hh = XP_SM_HEADER_H;
     for (int row = 0; row < hh; row++)
     {
-        uint8_t r = ((COL_XP_TITLE_TOP >> 16) & 0xFF) +
-            (((uint32_t)(((COL_XP_TITLE_BOTTOM >> 16) & 0xFF) - ((COL_XP_TITLE_TOP >> 16) & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
-        uint8_t g = ((COL_XP_TITLE_TOP >> 8) & 0xFF) +
-            (((uint32_t)(((COL_XP_TITLE_BOTTOM >> 8) & 0xFF) - ((COL_XP_TITLE_TOP >> 8) & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
-        uint8_t b = (COL_XP_TITLE_TOP & 0xFF) +
-            (((uint32_t)((COL_XP_TITLE_BOTTOM & 0xFF) - (COL_XP_TITLE_TOP & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
+        uint8_t r = ((COL_XP_TITLE_BOTTOM >> 16) & 0xFF) +
+            (((uint32_t)(((COL_XP_TITLE_TOP >> 16) & 0xFF) - ((COL_XP_TITLE_BOTTOM >> 16) & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
+        uint8_t g = ((COL_XP_TITLE_BOTTOM >> 8) & 0xFF) +
+            (((uint32_t)(((COL_XP_TITLE_TOP >> 8) & 0xFF) - ((COL_XP_TITLE_BOTTOM >> 8) & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
+        uint8_t b = (COL_XP_TITLE_BOTTOM & 0xFF) +
+            (((uint32_t)((COL_XP_TITLE_TOP & 0xFF) - (COL_XP_TITLE_BOTTOM & 0xFF))) * row / (hh - 1 < 1 ? 1 : hh - 1));
         fb_draw_hline(my + row, mx, mx + mw - 1, FB_RGB(r, g, b));
     }
 
@@ -832,23 +865,26 @@ static void draw_start_menu(void)
     fb_draw_hline(my + hh - 1, mx, mx + mw - 1, FB_RGB(0x00, 0x30, 0x92));
 
     /* User picture */
+    int icon_sz = 48;
     int icon_x = mx + 8;
-    int icon_y = my + (hh - 32) / 2;
-    fb_fillrect(icon_x, icon_y, 32, 32, FB_RGB(0xE0, 0xE0, 0xE0));
-    fb_draw_rect_outline(icon_x, icon_y, 32, 32, FB_RGB(0x00, 0x30, 0x92));
-    for (int row = 0; row < 32; row++)
-        for (int col = 0; col < 32; col++)
+    int icon_y = my + (hh - icon_sz) / 2;
+    fb_fillrect(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0xE0, 0xE0, 0xE0));
+    fb_draw_rect_outline(icon_x, icon_y, icon_sz, icon_sz, FB_RGB(0x00, 0x30, 0x92));
+    int ic_half = icon_sz / 2;
+    int ic_radius = ic_half - 2;
+    for (int row = 0; row < icon_sz; row++)
+        for (int col = 0; col < icon_sz; col++)
         {
-            int dx = col - 16, dy = row - 16;
-            if (dx * dx + dy * dy <= 14 * 14)
+            int dx = col - ic_half, dy = row - ic_half;
+            if (dx * dx + dy * dy <= ic_radius * ic_radius)
             {
                 int v = 0xD0 - (dx * dx + dy * dy) / 20;
                 if (v < 0xA0) v = 0xA0;
                 fb_putpixel(icon_x + col, icon_y + row, FB_RGB(v, v - 20, v - 40));
             }
         }
-    fb_drawstring(icon_x + 11, icon_y + 9, "U", FB_RGB(0x60, 0x60, 0x80), 0);
-    draw_xp_title_text(icon_x + 40, my + 14, "Default User", COL_WHITE, FB_RGB(0x00, 0x20, 0x60));
+    fb_drawstring(icon_x + ic_half - 4, icon_y + ic_half - 4, "U", FB_RGB(0x60, 0x60, 0x80), 0);
+    draw_xp_title_text(icon_x + icon_sz + 8, my + hh / 2 - FONT_HEIGHT / 2, "Default User", COL_WHITE, FB_RGB(0x00, 0x20, 0x60));
 
     /* Left column */
     int left_x = mx + 1;
@@ -872,7 +908,7 @@ static void draw_start_menu(void)
         fb_fillrect(left_x + 2, iy, left_w - 4, XP_SM_ITEM_H, bg);
         fb_fillrect(left_x + 6, iy + 6, 16, 16, FB_RGB(0x30, 0x80, 0xD0));
         fb_draw_rect_outline(left_x + 6, iy + 6, 16, 16, FB_RGB(0x20, 0x60, 0xB0));
-        fb_drawstring(left_x + 8, iy + 8, start_left_items[i], fg, bg);
+        fb_drawstring(left_x + 28, iy + (XP_SM_ITEM_H - FONT_HEIGHT) / 2, start_left_items[i], fg, bg);
     }
 
     for (int i = 0; i < start_right_count; i++)
@@ -1154,7 +1190,6 @@ static void handle_click(void)
         int tby = fb_info.height - XP_TASKBAR_H;
         int max_items = start_left_count > start_right_count ? start_left_count : start_right_count;
         int total_h = XP_SM_HEADER_H + max_items * XP_SM_ITEM_H + XP_SM_BOTTOM_H;
-        int smx = 0;
         int smy = tby - total_h;
         int in_menu = (mx >= 0 && mx < XP_SM_TOTAL_W && my >= smy && my < smy + total_h);
         if (in_menu) { handle_start_menu_click(mx, my); return; }
@@ -1688,8 +1723,8 @@ void gui_render(void)
         draw_window(active_window);
     }
 
-    draw_start_menu();
     draw_taskbar();
+    draw_start_menu();
 
     /* Finish drag and resize */
     for (int i = 0; i < num_windows; i++)
