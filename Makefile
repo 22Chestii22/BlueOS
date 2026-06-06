@@ -4,7 +4,7 @@ LD = ld
 GRUB_MKRESCUE = grub-mkrescue
 XORRISO = xorriso
 QEMU = qemu-system-x86_64
-QEMU_BASE = -drive file=disk.img,format=raw,if=ide -boot order=d -usb -device usb-tablet
+QEMU_BASE = -drive file=disk.img,format=raw,if=ide -boot order=d -usb -device usb-tablet -nic model=rtl8139
 
 CFLAGS = -m64 -ffreestanding -nostdlib -no-pie -mno-red-zone \
          -mno-mmx -mno-sse -mno-sse2 -fno-stack-protector \
@@ -40,6 +40,8 @@ KERNEL_SRCS = \
     kernel/fb.c \
     kernel/gui.c \
     kernel/timer.c \
+    kernel/pci.c \
+    kernel/rtl8139.c \
     modules/ata/ata.c \
     modules/fat/fat.c
 

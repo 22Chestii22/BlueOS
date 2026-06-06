@@ -18,6 +18,8 @@
 #include "gui.h"
 #include "timer.h"
 #include "boot_info.h"
+#include "pci.h"
+#include "rtl8139.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -146,6 +148,13 @@ void kernel_main(void* mbd, uint32_t magic)
     scheduler_init();
     load_disk_modules("\\SYSTEM\\DRIVERS");
 
+    {
+        pci_device_t nic;
+        if (pci_scan_device(PCI_VENDOR_RTL8139, PCI_DEVICE_RTL8139, &nic))
+            rtl8139_init(&nic);
+        else
+            screen_write("Net: No RTL8139 NIC found\n");
+    }
 
     blu_spawn("\\SYSTEM\\PROGRAMS\\RENDER.BLU");
     blu_spawn("\\SYSTEM\\PROGRAMS\\CMD.BLU");
@@ -216,6 +225,14 @@ void kernel_main_bootloader(boot_info_t* boot_info)
     syscall_init();
     scheduler_init();
     load_disk_modules("\\SYSTEM\\DRIVERS");
+
+    {
+        pci_device_t nic;
+        if (pci_scan_device(PCI_VENDOR_RTL8139, PCI_DEVICE_RTL8139, &nic))
+            rtl8139_init(&nic);
+        else
+            screen_write("Net: No RTL8139 NIC found\n");
+    }
 
     blu_spawn("\\SYSTEM\\PROGRAMS\\RENDER.BLU");
     blu_spawn("\\SYSTEM\\PROGRAMS\\CMD.BLU");
