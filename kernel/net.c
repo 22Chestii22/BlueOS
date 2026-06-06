@@ -726,6 +726,124 @@ int http_get(const char* hostname, const char* path, char* response, int max_len
     return -1;
 }
 
+static void write_str(char** dst, int* remaining, const char* src)
+{
+    while (*src && *remaining > 1)
+    {
+        *(*dst)++ = *src++;
+        (*remaining)--;
+    }
+}
+
+static void write_int(char** dst, int* remaining, int val)
+{
+    char buf[12];
+    int pos = 0;
+    if (val < 0) { val = -val; buf[pos++] = '-'; }
+    if (val == 0) { buf[pos++] = '0'; }
+    else
+    {
+        int start = pos;
+        while (val > 0) { buf[pos++] = '0' + (val % 10); val /= 10; }
+        for (int i = 0; i < (pos - start) / 2; i++)
+        {
+            char tmp = buf[start + i];
+            buf[start + i] = buf[pos - 1 - i];
+            buf[pos - 1 - i] = tmp;
+        }
+    }
+    write_str(dst, remaining, buf);
+}
+
+int http_post(const char* hostname, const char* path,
+              const char* content_type, const void* body, int body_len,
+              char* response, int max_len)
+{
+    screen_write("HTTP POST: resolving ");
+    screen_write(hostname);
+    screen_write("\n");
+
+    uint8_t ip[4];
+    if (!net_dns_query(hostname, ip))
+    {
+        screen_write("HTTP POST: DNS failed\n");
+        return -1;
+    }
+
+    char ip_str[16];
+    ip_to_str(ip, ip_str);
+    screen_write("HTTP POST: connecting to ");
+    screen_write(ip_str);
+    screen_write(":80\n");
+
+    int conn = tcp_connect(ip, 80);
+    if (conn < 0)
+    {
+        screen_write("HTTP POST: connect failed\n");
+        return -1;
+    }
+
+    char request[1536];
+    char* p = request;
+    int remaining = sizeof(request);
+
+    write_str(&p, &remaining, "POST ");
+    write_str(&p, &remaining, path);
+    write_str(&p, &remaining, " HTTP/1.1\r\n");
+    write_str(&p, &remaining, "Host: ");
+    write_str(&p, &remaining, hostname);
+    write_str(&p, &remaining, "\r\n");
+    if (content_type)
+    {
+        write_str(&p, &remaining, "Content-Type: ");
+        write_str(&p, &remaining, content_type);
+        write_str(&p, &remaining, "\r\n");
+    }
+    write_str(&p, &remaining, "Content-Length: ");
+    write_int(&p, &remaining, body_len);
+    write_str(&p, &remaining, "\r\n");
+    write_str(&p, &remaining, "Connection: close\r\n");
+    write_str(&p, &remaining, "\r\n");
+
+    if (body && body_len > 0 && remaining > body_len)
+    {
+        memcpy(p, body, body_len);
+        p += body_len;
+        remaining -= body_len;
+    }
+
+    int req_len = p - request;
+
+    screen_write("HTTP POST: sending request\n");
+    tcp_send(conn, request, req_len);
+
+    int total = 0;
+    uint64_t timeout = timer_get_ticks() + 2000;
+    while (timer_get_ticks() < timeout && total < max_len - 1)
+    {
+        int n = tcp_recv(conn, response + total, max_len - 1 - total);
+        if (n > 0) total += n;
+        if (n == 0)
+        {
+            for (volatile int d = 0; d < 10000; d++);
+        }
+    }
+    response[total] = 0;
+
+    tcp_close(conn);
+
+    if (total > 0)
+    {
+        screen_write("HTTP POST: received ");
+        screen_write_dec(total);
+        screen_write(" bytes\n");
+        return total;
+    }
+
+    screen_write("HTTP POST: no response\n");
+    return -1;
+}
+
 void net_init(void)
 {
     if (!rtl8139_dev.iobase) return;

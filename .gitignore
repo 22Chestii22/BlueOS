@@ -10,4 +10,5 @@ iso/
 
 *.log
 *.bak
+__pycache__/
 kernel/boot_no_fb.asm
