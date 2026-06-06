@@ -9,6 +9,8 @@ uint8_t net_our_ip[4] = {10, 0, 2, 15};
 uint8_t net_gateway_ip[4] = {10, 0, 2, 2};
 uint8_t net_dns_ip[4] = {10, 0, 2, 3};
 
+tcp_conn_t tcp_conns[TCP_MAX_CONNS];
+
 #define ARP_CACHE_SIZE 8
 static struct {
     uint8_t ip[4];
@@ -157,6 +159,137 @@ static void net_handle_udp(const uint8_t* src_ip, const uint8_t* data, int len)
     }
 }
 
+static uint16_t tcp_checksum(const uint8_t* src_ip, const uint8_t* dst_ip,
+                              const void* tcp_seg, int tcp_len)
+{
+    uint8_t pseudo[12];
+    memcpy(pseudo, src_ip, 4);
+    memcpy(pseudo + 4, dst_ip, 4);
+    pseudo[8] = 0;
+    pseudo[9] = IP_PROTO_TCP;
+    pseudo[10] = (tcp_len >> 8) & 0xFF;
+    pseudo[11] = tcp_len & 0xFF;
+    uint32_t sum = 0;
+    const uint16_t* p = (const uint16_t*)pseudo;
+    for (int i = 0; i < 6; i++) sum += p[i];
+    p = (const uint16_t*)tcp_seg;
+    for (int i = 0; i < tcp_len / 2; i++) sum += p[i];
+    if (tcp_len & 1)
+        sum += ((const uint8_t*)tcp_seg)[tcp_len - 1];
+    while (sum >> 16)
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    return ~(uint16_t)sum;
+}
+
+static int net_send_tcp_segment(tcp_conn_t* conn, uint16_t flags,
+                                 const void* data, int data_len)
+{
+    int tcp_hdr_len = sizeof(tcp_header_t);
+    int total_tcp = tcp_hdr_len + data_len;
+    if (total_tcp > 1460) return -1;
+
+    uint8_t seg[1500];
+    tcp_header_t* tcp = (tcp_header_t*)seg;
+    memset(tcp, 0, tcp_hdr_len);
+
+    tcp->src_port = ((conn->src_port >> 8) & 0xFF) | ((conn->src_port & 0xFF) << 8);
+    tcp->dst_port = ((conn->dst_port >> 8) & 0xFF) | ((conn->dst_port & 0xFF) << 8);
+    uint32_t seq_be = ((conn->seq >> 24) & 0xFF) | ((conn->seq >> 8) & 0xFF00) |
+                      ((conn->seq << 8) & 0xFF0000) | ((conn->seq << 24) & 0xFF000000u);
+    tcp->seq_num = seq_be;
+    uint32_t ack_be = ((conn->ack >> 24) & 0xFF) | ((conn->ack >> 8) & 0xFF00) |
+                      ((conn->ack << 8) & 0xFF0000) | ((conn->ack << 24) & 0xFF000000u);
+    tcp->ack_num = ack_be;
+    uint16_t doff_flags = (uint16_t)((tcp_hdr_len / 4) << 12) | flags;
+    tcp->data_offset_flags = ((doff_flags >> 8) & 0xFF) | ((doff_flags & 0xFF) << 8);
+    tcp->window = 0xFFFF;
+
+    if (data_len > 0)
+        memcpy(seg + tcp_hdr_len, data, data_len);
+
+    tcp->checksum = 0;
+    tcp->checksum = tcp_checksum(conn->dst_ip, net_our_ip, seg, total_tcp);
+
+    if (flags & TCP_FLAG_SYN)
+        conn->seq++;
+    else if (flags & TCP_FLAG_FIN)
+        conn->seq++;
+    else if (data_len > 0)
+        conn->seq += data_len;
+
+    return net_send_ip(conn->dst_ip, IP_PROTO_TCP, seg, total_tcp);
+}
+
+static void net_handle_tcp(const uint8_t* src_ip, const uint8_t* data, int len)
+{
+    if (len < (int)sizeof(tcp_header_t)) return;
+    const tcp_header_t* tcp = (const tcp_header_t*)data;
+
+    uint16_t dst_port = (tcp->dst_port >> 8) | ((tcp->dst_port & 0xFF) << 8);
+    uint16_t src_port = (tcp->src_port >> 8) | ((tcp->src_port & 0xFF) << 8);
+
+    uint32_t pkt_seq = ((tcp->seq_num >> 24) & 0xFF) | ((tcp->seq_num >> 8) & 0xFF00) |
+                       ((tcp->seq_num << 8) & 0xFF0000) | ((tcp->seq_num << 24) & 0xFF000000u);
+    uint32_t pkt_ack = ((tcp->ack_num >> 24) & 0xFF) | ((tcp->ack_num >> 8) & 0xFF00) |
+                       ((tcp->ack_num << 8) & 0xFF0000) | ((tcp->ack_num << 24) & 0xFF000000u);
+    uint16_t doff_flags = (tcp->data_offset_flags >> 8) | ((tcp->data_offset_flags & 0xFF) << 8);
+    uint8_t flags = doff_flags & 0xFF;
+
+    int hdr_len = ((doff_flags >> 12) & 0x0F) * 4;
+    if (hdr_len < 20 || hdr_len > len) return;
+    int payload_len = len - hdr_len;
+
+    for (int i = 0; i < TCP_MAX_CONNS; i++)
+    {
+        tcp_conn_t* c = &tcp_conns[i];
+        if (c->state == TCP_STATE_CLOSED) continue;
+        if (memcmp(c->dst_ip, src_ip, 4) != 0) continue;
+        if (c->dst_port != src_port) continue;
+        if (c->src_port != dst_port) continue;
+
+        if (flags & TCP_FLAG_RST)
+        {
+            c->state = TCP_STATE_CLOSED;
+            return;
+        }
+
+        if (c->state == TCP_STATE_SYN_SENT && (flags & TCP_FLAG_SYN) && (flags & TCP_FLAG_ACK))
+        {
+            c->ack = pkt_seq + 1;
+            c->seq = pkt_ack;
+            c->state = TCP_STATE_ESTABLISHED;
+            net_send_tcp_segment(c, TCP_FLAG_ACK, NULL, 0);
+            return;
+        }
+
+        if (c->state == TCP_STATE_ESTABLISHED || c->state == TCP_STATE_FIN_WAIT_1)
+        {
+            if (payload_len > 0 && payload_len + c->recv_len <= TCP_RECV_BUF)
+            {
+                memcpy(c->recv_buf + c->recv_len, data + hdr_len, payload_len);
+                c->recv_len += payload_len;
+            }
+            c->ack = pkt_seq + payload_len;
+            if (flags & TCP_FLAG_FIN)
+            {
+                c->ack++;
+                c->state = TCP_STATE_LAST_ACK;
+                net_send_tcp_segment(c, TCP_FLAG_ACK, NULL, 0);
+                net_send_tcp_segment(c, TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+                return;
+            }
+            net_send_tcp_segment(c, TCP_FLAG_ACK, NULL, 0);
+            return;
+        }
+
+        if (c->state == TCP_STATE_LAST_ACK && (flags & TCP_FLAG_ACK))
+        {
+            c->state = TCP_STATE_CLOSED;
+            return;
+        }
+    }
+}
+
 static void net_process_packet(const uint8_t* data, int len)
 {
     if (len < (int)sizeof(eth_header_t)) return;
@@ -193,6 +326,8 @@ static void net_process_packet(const uint8_t* data, int len)
             net_handle_icmp(src_ip, proto_data, proto_len);
         else if (proto == IP_PROTO_UDP)
             net_handle_udp(src_ip, proto_data, proto_len);
+        else if (proto == IP_PROTO_TCP)
+            net_handle_tcp(src_ip, proto_data, proto_len);
     }
 }
 
@@ -320,8 +455,8 @@ int net_recv_ip(uint8_t* src_ip, uint8_t* protocol, void* buffer, int max_len)
                 int payload_len = ((ip->total_len >> 8) | ((ip->total_len & 0xFF) << 8)) - ihl;
                 if (payload_len > 0 && payload_len <= max_len)
                 {
-                    memcpy(src_ip, ip->src_ip, 4);
-                    *protocol = ip->protocol;
+                    if (src_ip) memcpy(src_ip, ip->src_ip, 4);
+                    if (protocol) *protocol = ip->protocol;
                     memcpy(buffer, buf + sizeof(eth_header_t) + ihl, payload_len);
                     return payload_len;
                 }
@@ -410,6 +545,187 @@ int net_dns_query(const char* hostname, uint8_t* ip_out)
     return 0;
 }
 
+int tcp_connect(const uint8_t* dst_ip, uint16_t dst_port)
+{
+    int idx = -1;
+    for (int i = 0; i < TCP_MAX_CONNS; i++)
+    {
+        if (tcp_conns[i].state == TCP_STATE_CLOSED) { idx = i; break; }
+    }
+    if (idx < 0) return -1;
+
+    tcp_conn_t* c = &tcp_conns[idx];
+    memset(c, 0, sizeof(tcp_conn_t));
+    memcpy(c->dst_ip, dst_ip, 4);
+    c->dst_port = dst_port;
+    c->src_port = 49152 + idx;
+    c->seq = 1000 + idx * 1000;
+    c->ack = 0;
+    c->state = TCP_STATE_SYN_SENT;
+
+    net_send_tcp_segment(c, TCP_FLAG_SYN, NULL, 0);
+
+    uint64_t timeout = timer_get_ticks() + 200;
+    while (timer_get_ticks() < timeout)
+    {
+        uint8_t buf[1522];
+        int rlen = rtl8139_recv(buf, sizeof(buf));
+        if (rlen > 0)
+        {
+            net_process_packet(buf, rlen);
+            if (c->state == TCP_STATE_ESTABLISHED)
+            {
+                char ip_str[16];
+                ip_to_str(dst_ip, ip_str);
+                screen_write("TCP: connected to ");
+                screen_write(ip_str);
+                screen_write(":");
+                screen_write_dec(dst_port);
+                screen_write("\n");
+                return idx;
+            }
+        }
+    }
+
+    c->state = TCP_STATE_CLOSED;
+    screen_write("TCP: connect timeout\n");
+    return -1;
+}
+
+int tcp_send(int conn_id, const void* data, int len)
+{
+    if (conn_id < 0 || conn_id >= TCP_MAX_CONNS) return -1;
+    tcp_conn_t* c = &tcp_conns[conn_id];
+    if (c->state != TCP_STATE_ESTABLISHED) return -1;
+    int sent = c->seq;
+    net_send_tcp_segment(c, TCP_FLAG_PSH | TCP_FLAG_ACK, data, len);
+    return c->seq - sent;
+}
+
+int tcp_recv(int conn_id, void* buffer, int max_len)
+{
+    if (conn_id < 0 || conn_id >= TCP_MAX_CONNS) return -1;
+    tcp_conn_t* c = &tcp_conns[conn_id];
+    if (c->state != TCP_STATE_ESTABLISHED && c->state != TCP_STATE_LAST_ACK) return -1;
+
+    uint64_t timeout = timer_get_ticks() + 100;
+    while (timer_get_ticks() < timeout)
+    {
+        uint8_t buf[1522];
+        int rlen = rtl8139_recv(buf, sizeof(buf));
+        if (rlen > 0)
+            net_process_packet(buf, rlen);
+
+        if (c->recv_len > 0)
+        {
+            int copy = c->recv_len < max_len ? c->recv_len : max_len;
+            memcpy(buffer, c->recv_buf, copy);
+            if (copy < c->recv_len)
+                for (int j = 0; j < c->recv_len - copy; j++)
+                    c->recv_buf[j] = c->recv_buf[j + copy];
+            c->recv_len -= copy;
+            return copy;
+        }
+
+        if (c->state == TCP_STATE_CLOSED) return 0;
+    }
+    return 0;
+}
+
+void tcp_close(int conn_id)
+{
+    if (conn_id < 0 || conn_id >= TCP_MAX_CONNS) return;
+    tcp_conn_t* c = &tcp_conns[conn_id];
+    if (c->state != TCP_STATE_ESTABLISHED) { c->state = TCP_STATE_CLOSED; return; }
+
+    c->state = TCP_STATE_FIN_WAIT_1;
+    net_send_tcp_segment(c, TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+
+    uint64_t timeout = timer_get_ticks() + 100;
+    while (timer_get_ticks() < timeout)
+    {
+        uint8_t buf[1522];
+        int rlen = rtl8139_recv(buf, sizeof(buf));
+        if (rlen > 0)
+            net_process_packet(buf, rlen);
+        if (c->state == TCP_STATE_CLOSED) break;
+    }
+
+    c->state = TCP_STATE_CLOSED;
+    screen_write("TCP: closed\n");
+}
+
+int http_get(const char* hostname, const char* path, char* response, int max_len)
+{
+    screen_write("HTTP: resolving ");
+    screen_write(hostname);
+    screen_write("\n");
+
+    uint8_t ip[4];
+    if (!net_dns_query(hostname, ip))
+    {
+        screen_write("HTTP: DNS failed\n");
+        return -1;
+    }
+
+    char ip_str[16];
+    ip_to_str(ip, ip_str);
+    screen_write("HTTP: connecting to ");
+    screen_write(ip_str);
+    screen_write(":80\n");
+
+    int conn = tcp_connect(ip, 80);
+    if (conn < 0)
+    {
+        screen_write("HTTP: connect failed\n");
+        return -1;
+    }
+
+    char request[512];
+    int req_len = 0;
+    const char* method = "GET";
+    while (*method) request[req_len++] = *method++;
+    request[req_len++] = ' ';
+    const char* p = path;
+    while (*p) request[req_len++] = *p++;
+    request[req_len++] = ' ';
+    request[req_len++] = 'H'; request[req_len++] = 'T'; request[req_len++] = 'T';
+    request[req_len++] = 'P'; request[req_len++] = '/'; request[req_len++] = '1';
+    request[req_len++] = '.'; request[req_len++] = '1';
+    request[req_len++] = '\r'; request[req_len++] = '\n';
+    const char* host_hdr = "Host: ";
+    while (*host_hdr) request[req_len++] = *host_hdr++;
+    const char* h = hostname;
+    while (*h) request[req_len++] = *h++;
+    request[req_len++] = '\r'; request[req_len++] = '\n';
+    request[req_len++] = '\r'; request[req_len++] = '\n';
+
+    screen_write("HTTP: sending request\n");
+    tcp_send(conn, request, req_len);
+
+    int total = 0;
+    uint64_t timeout = timer_get_ticks() + 500;
+    while (timer_get_ticks() < timeout && total < max_len - 1)
+    {
+        int n = tcp_recv(conn, response + total, max_len - 1 - total);
+        if (n > 0) total += n;
+    }
+    response[total] = 0;
+
+    tcp_close(conn);
+
+    if (total > 0)
+    {
+        screen_write("HTTP: received ");
+        screen_write_dec(total);
+        screen_write(" bytes\n");
+        return total;
+    }
+
+    screen_write("HTTP: no response\n");
+    return -1;
+}
+
 void net_init(void)
 {
     if (!rtl8139_dev.iobase) return;
@@ -427,4 +743,5 @@ void net_init(void)
     screen_write("\n");
 
     memset(arp_cache, 0, sizeof(arp_cache));
+    memset(tcp_conns, 0, sizeof(tcp_conns));
 }
