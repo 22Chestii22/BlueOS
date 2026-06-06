@@ -194,14 +194,15 @@ static int launcher_generate_app(const char* query)
     while (*p && jlen < 510) json_body[jlen++] = *p++;
     json_body[jlen] = 0;
 
-    char response[2048];
+    char response[4096];
 
     int ret = http_post(GROQ_RELAY_HOST, "/generate",
                         "application/json", json_body, jlen,
                         response, sizeof(response) - 1);
     if (ret > 0)
     {
-        const char* path_start = strstr(response, "\"path\":\"");
+        const char* body = http_find_body(response, ret);
+        const char* path_start = strstr(body, "\"path\":\"");
         if (path_start)
         {
             path_start += 8;
@@ -225,7 +226,7 @@ static int launcher_generate_app(const char* query)
             }
         }
 
-        const char* err_start = strstr(response, "\"message\":\"");
+        const char* err_start = strstr(body, "\"message\":\"");
         if (err_start)
         {
             err_start += 11;

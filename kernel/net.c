@@ -4,6 +4,8 @@
 #include "screen.h"
 #include "timer.h"
 
+extern void yield_to_scheduler(void);
+
 uint8_t net_our_mac[6] = {0};
 uint8_t net_our_ip[4] = {10, 0, 2, 15};
 uint8_t net_gateway_ip[4] = {10, 0, 2, 2};
@@ -402,6 +404,7 @@ int net_arp_resolve(const uint8_t* ip, uint8_t* mac)
             net_process_packet(buf, rlen);
             if (arp_cache_lookup(ip, mac)) return 1;
         }
+        yield_to_scheduler();
     }
     return 0;
 }
@@ -574,23 +577,20 @@ int net_dns_query(const char* hostname, uint8_t* ip_out)
             if (ancount > 0)
             {
                 const uint8_t* rdata = buf + sizeof(dns_header_t);
-                /* Skip question section: QNAME (labels or pointer) */
                 while (rdata - buf < rlen)
                 {
                     if (*rdata == 0) { rdata++; break; }
                     if (*rdata == 0xC0) { rdata += 2; break; }
                     rdata += *rdata + 1;
                 }
-                rdata += 4; /* skip QTYPE + QCLASS */
-                /* Now at answer section */
+                rdata += 4;
                 if (rdata + 16 <= (const uint8_t*)buf + rlen)
                 {
-                    /* Skip answer NAME (pointer or labels) */
                     if (*rdata == 0xC0) rdata += 2;
                     else { while (*rdata) rdata += *rdata + 1; rdata++; }
-                    rdata += 8; /* TYPE(2) + CLASS(2) + TTL(4) */
+                    rdata += 8;
                     uint16_t rdlen = ((uint16_t)rdata[0] << 8) | rdata[1];
-                    rdata += 2; /* skip RDLENGTH */
+                    rdata += 2;
                     if (rdlen == 4 && rdata + 4 <= (const uint8_t*)buf + rlen)
                     {
                         memcpy(ip_out, rdata, 4);
@@ -604,6 +604,7 @@ int net_dns_query(const char* hostname, uint8_t* ip_out)
                 }
             }
         }
+        yield_to_scheduler();
     }
     screen_write("DNS: timeout\n");
     return 0;
@@ -651,6 +652,7 @@ int tcp_connect(const uint8_t* dst_ip, uint16_t dst_port)
                     return idx;
                 }
             }
+            yield_to_scheduler();
         }
     }
 
@@ -695,6 +697,7 @@ int tcp_recv(int conn_id, void* buffer, int max_len)
         }
 
         if (c->state == TCP_STATE_CLOSED) return 0;
+        yield_to_scheduler();
     }
     return 0;
 }
@@ -716,81 +719,11 @@ void tcp_close(int conn_id)
         if (rlen > 0)
             net_process_packet(buf, rlen);
         if (c->state == TCP_STATE_CLOSED) break;
+        yield_to_scheduler();
     }
 
     c->state = TCP_STATE_CLOSED;
     screen_write("TCP: closed\n");
-}
-
-int http_get(const char* hostname, const char* path, char* response, int max_len)
-{
-    screen_write("HTTP: resolving ");
-    screen_write(hostname);
-    screen_write("\n");
-
-    uint8_t ip[4];
-    if (!net_dns_query(hostname, ip))
-    {
-        screen_write("HTTP: DNS failed\n");
-        return -1;
-    }
-
-    char ip_str[16];
-    ip_to_str(ip, ip_str);
-    screen_write("HTTP: connecting to ");
-    screen_write(ip_str);
-    screen_write(":80\n");
-
-    int conn = tcp_connect(ip, 80);
-    if (conn < 0)
-    {
-        screen_write("HTTP: connect failed\n");
-        return -1;
-    }
-
-    char request[512];
-    int req_len = 0;
-    const char* method = "GET";
-    while (*method) request[req_len++] = *method++;
-    request[req_len++] = ' ';
-    const char* p = path;
-    while (*p) request[req_len++] = *p++;
-    request[req_len++] = ' ';
-    request[req_len++] = 'H'; request[req_len++] = 'T'; request[req_len++] = 'T';
-    request[req_len++] = 'P'; request[req_len++] = '/'; request[req_len++] = '1';
-    request[req_len++] = '.'; request[req_len++] = '1';
-    request[req_len++] = '\r'; request[req_len++] = '\n';
-    const char* host_hdr = "Host: ";
-    while (*host_hdr) request[req_len++] = *host_hdr++;
-    const char* h = hostname;
-    while (*h) request[req_len++] = *h++;
-    request[req_len++] = '\r'; request[req_len++] = '\n';
-    request[req_len++] = '\r'; request[req_len++] = '\n';
-
-    screen_write("HTTP: sending request\n");
-    tcp_send(conn, request, req_len);
-
-    int total = 0;
-    uint64_t timeout = timer_get_ticks() + 500;
-    while (timer_get_ticks() < timeout && total < max_len - 1)
-    {
-        int n = tcp_recv(conn, response + total, max_len - 1 - total);
-        if (n > 0) total += n;
-    }
-    response[total] = 0;
-
-    tcp_close(conn);
-
-    if (total > 0)
-    {
-        screen_write("HTTP: received ");
-        screen_write_dec(total);
-        screen_write(" bytes\n");
-        return total;
-    }
-
-    screen_write("HTTP: no response\n");
-    return -1;
 }
 
 static void write_str(char** dst, int* remaining, const char* src)
@@ -820,6 +753,71 @@ static void write_int(char** dst, int* remaining, int val)
         }
     }
     write_str(dst, remaining, buf);
+}
+
+int http_get(const char* hostname, const char* path, char* response, int max_len)
+{
+    screen_write("HTTP: resolving ");
+    screen_write(hostname);
+    screen_write("\n");
+
+    uint8_t ip[4];
+    if (!net_dns_query(hostname, ip))
+    {
+        screen_write("HTTP: DNS failed\n");
+        return -1;
+    }
+
+    char ip_str[16];
+    ip_to_str(ip, ip_str);
+    screen_write("HTTP: connecting to ");
+    screen_write(ip_str);
+    screen_write(":80\n");
+
+    int conn = tcp_connect(ip, 80);
+    if (conn < 0)
+    {
+        screen_write("HTTP: connect failed\n");
+        return -1;
+    }
+
+    char request[1024];
+    char* rp = request;
+    int rremaining = sizeof(request);
+    write_str(&rp, &rremaining, "GET ");
+    write_str(&rp, &rremaining, path);
+    write_str(&rp, &rremaining, " HTTP/1.1\r\n");
+    write_str(&rp, &rremaining, "Host: ");
+    write_str(&rp, &rremaining, hostname);
+    write_str(&rp, &rremaining, "\r\n");
+    write_str(&rp, &rremaining, "Connection: close\r\n");
+    write_str(&rp, &rremaining, "\r\n");
+    int req_len = rp - request;
+
+    screen_write("HTTP: sending request\n");
+    tcp_send(conn, request, req_len);
+
+    int total = 0;
+    uint64_t timeout = timer_get_ticks() + 3000;
+    while (timer_get_ticks() < timeout && total < max_len - 1)
+    {
+        int n = tcp_recv(conn, response + total, max_len - 1 - total);
+        if (n > 0) total += n;
+    }
+    response[total] = 0;
+
+    tcp_close(conn);
+
+    if (total > 0)
+    {
+        screen_write("HTTP: received ");
+        screen_write_dec(total);
+        screen_write(" bytes\n");
+        return total;
+    }
+
+    screen_write("HTTP: no response\n");
+    return -1;
 }
 
 int http_post(const char* hostname, const char* path,
@@ -885,14 +883,14 @@ int http_post(const char* hostname, const char* path,
     tcp_send(conn, request, req_len);
 
     int total = 0;
-    uint64_t timeout = timer_get_ticks() + 2000;
+    uint64_t timeout = timer_get_ticks() + 10000;
     while (timer_get_ticks() < timeout && total < max_len - 1)
     {
         int n = tcp_recv(conn, response + total, max_len - 1 - total);
         if (n > 0) total += n;
         if (n == 0)
         {
-            for (volatile int d = 0; d < 10000; d++);
+            yield_to_scheduler();
         }
     }
     response[total] = 0;
@@ -909,6 +907,17 @@ int http_post(const char* hostname, const char* path,
 
     screen_write("HTTP POST: no response\n");
     return -1;
+}
+
+const char* http_find_body(const char* response, int total_len)
+{
+    const char* end = response + total_len;
+    for (const char* p = response; p + 3 < end; p++)
+    {
+        if (p[0] == '\r' && p[1] == '\n' && p[2] == '\r' && p[3] == '\n')
+            return p + 4;
+    }
+    return response;
 }
 
 void net_init(void)

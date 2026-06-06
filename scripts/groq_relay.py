@@ -139,98 +139,123 @@ def sanitize_name(name):
 
 
 def generate_blu(query):
-    raw = call_groq(BLUEOS_SYSTEM_PROMPT, query)
-    raw = raw.strip()
+    max_attempts = 3
+    last_error = ""
+    raw = ""
 
-    name_match = re.search(r"; NAME:\s*(\S+)", raw)
-    prog_name = name_match.group(1) if name_match else "AIApp"
-    prog_name = sanitize_name(prog_name)
+    for attempt in range(max_attempts):
+        if attempt == 0:
+            system_prompt = BLUEOS_SYSTEM_PROMPT
+            user_message = query
+        else:
+            system_prompt = (
+                BLUEOS_SYSTEM_PROMPT
+                + "\n\nYour previous attempt had a compilation error. Fix it:\n"
+                + last_error
+            )
+            user_message = (
+                query
+                + "\n\nFix the NASM compilation error above and regenerate the full program."
+            )
 
-    desc_match = re.search(r"; DESC:\s*(.+)", raw)
-    description = desc_match.group(1).strip() if desc_match else ""
+        raw = call_groq(system_prompt, user_message)
+        raw = raw.strip()
 
-    code_start = re.search(r"BITS\s+64", raw, re.IGNORECASE)
-    if code_start:
-        raw = raw[code_start.start() :]
-    else:
-        lines = [
-            l
-            for l in raw.split("\n")
-            if not l.strip().startswith("; NAME:")
-            and not l.strip().startswith("; DESC:")
-        ]
-        raw = "\n".join(lines)
+        name_match = re.search(r"; NAME:\s*(\S+)", raw)
+        prog_name = name_match.group(1) if name_match else "AIApp"
+        prog_name = sanitize_name(prog_name)
 
-    asm_dir = os.path.join(PROJECT_ROOT, "build", "gen")
-    os.makedirs(asm_dir, exist_ok=True)
+        desc_match = re.search(r"; DESC:\s*(.+)", raw)
+        description = desc_match.group(1).strip() if desc_match else ""
 
-    asm_path = os.path.join(asm_dir, f"{prog_name}.asm")
-    bin_path = os.path.join(asm_dir, f"{prog_name}.bin")
-    blu_path = os.path.join(asm_dir, f"{prog_name}.blu")
+        code_start = re.search(r"BITS\s+64", raw, re.IGNORECASE)
+        if code_start:
+            raw = raw[code_start.start() :]
+        else:
+            lines = [
+                l
+                for l in raw.split("\n")
+                if not l.strip().startswith("; NAME:")
+                and not l.strip().startswith("; DESC:")
+            ]
+            raw = "\n".join(lines)
 
-    with open(asm_path, "w") as f:
-        f.write(raw)
+        asm_dir = os.path.join(PROJECT_ROOT, "build", "gen")
+        os.makedirs(asm_dir, exist_ok=True)
 
-    result = subprocess.run(
-        ["nasm", "-f", "bin", "-o", bin_path, asm_path],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"NASM failed: {result.stderr.strip() or result.stdout.strip()}"
+        asm_path = os.path.join(asm_dir, f"{prog_name}.asm")
+        bin_path = os.path.join(asm_dir, f"{prog_name}.bin")
+        blu_path = os.path.join(asm_dir, f"{prog_name}.blu")
+
+        with open(asm_path, "w") as f:
+            f.write(raw)
+
+        result = subprocess.run(
+            ["nasm", "-f", "bin", "-o", bin_path, asm_path],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            last_error = result.stderr.strip() or result.stdout.strip()
+            print(
+                f"[NASM] Attempt {attempt + 1}/{max_attempts} failed: {last_error[:100]}"
+            )
+            continue
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/make_blu.py",
+                bin_path,
+                blu_path,
+                "0x400000",
+                "0",
+                prog_name,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=PROJECT_ROOT,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"make_blu failed: {result.stderr.strip() or result.stdout.strip()}"
+            )
+
+        disk_img = os.path.join(PROJECT_ROOT, "disk.img")
+        if not os.path.exists(disk_img):
+            raise RuntimeError(
+                "disk.img not found — build it first with 'make disk.img'"
+            )
+
+        subprocess.run(
+            ["mmd", "-i", disk_img, "::/SYSTEM/AI"],
+            capture_output=True,
+            timeout=30,
         )
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/make_blu.py",
-            bin_path,
-            blu_path,
-            "0x400000",
-            "0",
-            prog_name,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        cwd=PROJECT_ROOT,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"make_blu failed: {result.stderr.strip() or result.stdout.strip()}"
+        dest_path = f"::/SYSTEM/AI/{prog_name}.BLU"
+        result = subprocess.run(
+            ["mcopy", "-i", disk_img, blu_path, dest_path],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"mcopy failed: {result.stderr.strip() or result.stdout.strip()}"
+            )
 
-    disk_img = os.path.join(PROJECT_ROOT, "disk.img")
-    if not os.path.exists(disk_img):
-        raise RuntimeError("disk.img not found — build it first with 'make disk.img'")
+        print(f"[GEN] {prog_name}: {query[:40]}... -> {dest_path}")
 
-    subprocess.run(
-        ["mmd", "-i", disk_img, "::/SYSTEM/AI"],
-        capture_output=True,
-        timeout=30,
-    )
+        return {
+            "path": f"\\SYSTEM\\AI\\{prog_name}.BLU",
+            "name": prog_name,
+            "description": description,
+        }
 
-    dest_path = f"::/SYSTEM/AI/{prog_name}.BLU"
-    result = subprocess.run(
-        ["mcopy", "-i", disk_img, blu_path, dest_path],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"mcopy failed: {result.stderr.strip() or result.stdout.strip()}"
-        )
-
-    print(f"[GEN] {prog_name}: {query[:40]}... -> {dest_path}")
-
-    return {
-        "path": f"\\SYSTEM\\AI\\{prog_name}.BLU",
-        "name": prog_name,
-        "description": description,
-    }
+    raise RuntimeError(f"NASM failed after {max_attempts} attempts: {last_error}")
 
 
 class RelayHandler(BaseHTTPRequestHandler):

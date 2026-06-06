@@ -137,4 +137,6 @@ int http_post(const char* hostname, const char* path,
               const char* content_type, const void* body, int body_len,
               char* response, int max_len);
 
+const char* http_find_body(const char* response, int total_len);
+
 #endif
