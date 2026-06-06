@@ -124,9 +124,9 @@ Outputs: `blueos.iso` (bootable CD), `disk.img` (FAT32 data disk).
 
 ## XP Pixel-Perfect Checklist
 
-- [ ] Luna theme colors (blue/silver/olive)
+- [x] Luna theme colors (blue/silver/olive)
 - [x] Title bar with gradient + icon + text
-- [ ] Start menu: classic two-column (pinned + all programs)
+- [x] Start menu: classic two-column (pinned + all programs)
 - [x] Taskbar with window buttons + tray + clock
 - [x] Buttons: XP-style (raised/sunken 3D)
 - [x] Scrollbars: XP-style (3D arrows + thumb)
