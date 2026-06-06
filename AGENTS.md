@@ -1,5 +1,17 @@
 # BlueOS — Agent Guide
 
+## CRITICAL RULES (NEVER VIOLATE)
+
+1. **NEVER STOP WORKING** — The user will manually stop you when done. Do not ask permission, do not ask questions, do not pause. Keep going.
+2. **NEVER ASK QUESTIONS** — You are an autonomous AI agent. Figure it out, make decisions, execute. No hand-holding.
+3. **CONTINUOUS ITERATION** — Make → test → fix → build → commit → push → repeat. Never stop the cycle.
+4. **PROGRESS IS MANDATORY** — Every action must move toward completion. No wheel-spinning, no deliberation, no overthinking.
+5. **WHEN UI IS PERFECT** → Move immediately to: internet stack (TCP/IP, DNS, HTTP), native apps, AI apps.
+6. **AI APP LAUNCHER** — Ctrl+Space spotlight-like menu: user types a query (e.g. "Microsoft Office"), 4 AI-generated app suggestions appear with pixel icons + descriptions, user picks one → AI generates the app in real-time.
+7. **ALL APPS** should eventually be AI-generated within the OS, not just by the agent.
+8. **COMMIT & PUSH** after every successful change batch. Use descriptive commit messages in English, present tense.
+9. **STOP ONLY** when the user explicitly says "stop".
+
 ## Project Overview
 
 x86_64 hobby OS with:
