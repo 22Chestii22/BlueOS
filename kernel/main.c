@@ -20,6 +20,7 @@
 #include "boot_info.h"
 #include "pci.h"
 #include "rtl8139.h"
+#include "net.h"
 
 extern void idt_init(void);
 extern void paging_init(uint64_t mem_size);
@@ -151,7 +152,10 @@ void kernel_main(void* mbd, uint32_t magic)
     {
         pci_device_t nic;
         if (pci_scan_device(PCI_VENDOR_RTL8139, PCI_DEVICE_RTL8139, &nic))
+        {
             rtl8139_init(&nic);
+            net_init();
+        }
         else
             screen_write("Net: No RTL8139 NIC found\n");
     }
@@ -229,7 +233,10 @@ void kernel_main_bootloader(boot_info_t* boot_info)
     {
         pci_device_t nic;
         if (pci_scan_device(PCI_VENDOR_RTL8139, PCI_DEVICE_RTL8139, &nic))
+        {
             rtl8139_init(&nic);
+            net_init();
+        }
         else
             screen_write("Net: No RTL8139 NIC found\n");
     }

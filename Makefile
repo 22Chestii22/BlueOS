@@ -42,6 +42,7 @@ KERNEL_SRCS = \
     kernel/timer.c \
     kernel/pci.c \
     kernel/rtl8139.c \
+    kernel/net.c \
     modules/ata/ata.c \
     modules/fat/fat.c
 
