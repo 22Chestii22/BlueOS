@@ -45,20 +45,24 @@ void fb_apply_desktop_bg(void);
 #define COL_YELLOW      FB_RGB(255,255,0)
 #define COL_CYAN        FB_RGB(0,255,255)
 #define COL_MAGENTA     FB_RGB(255,0,255)
-#define COL_WIN_BLUE    FB_RGB(1,11,163)
-#define COL_WIN_BLUE2   FB_RGB(0,0,170)
+
 
 /* Windows XP Luna (Blue) theme colors */
-#define COL_XP_TITLE_TOP     FB_RGB(0x00,0x5A,0xE0)
-#define COL_XP_TITLE_BOTTOM  FB_RGB(0x00,0x78,0xFF)
-#define COL_XP_TITLE_BORDER  FB_RGB(0x00,0x33,0x99)
+#define COL_XP_TITLE_TOP     FB_RGB(0x00,0x58,0xEE)
+#define COL_XP_TITLE_BOTTOM  FB_RGB(0x00,0x30,0x92)
+#define COL_XP_TITLE_BORDER  FB_RGB(0x00,0x30,0x92)
 #define COL_XP_TITLE_TEXT    COL_WHITE
-#define COL_XP_TITLE_INACT_TOP    FB_RGB(0xA0,0xA0,0xA0)
-#define COL_XP_TITLE_INACT_BOTTOM FB_RGB(0xC8,0xC8,0xC8)
-#define COL_XP_TITLE_INACT_TEXT   FB_RGB(0x6B,0x6B,0x6B)
+#define COL_XP_TITLE_INACT_TOP    FB_RGB(0x76,0x97,0xE7)
+#define COL_XP_TITLE_INACT_BOTTOM FB_RGB(0xAB,0xBA,0xE3)
+#define COL_XP_TITLE_INACT_TEXT   FB_RGB(0x40,0x40,0x40)
 
-#define COL_XP_TASKBAR       FB_RGB(0x24,0x5E,0xDC)
-#define COL_XP_TASKBAR_BORDER COL_XP_TITLE_BORDER
+#define COL_XP_TASKBAR_TOP     FB_RGB(0x31,0x65,0xC4)
+#define COL_XP_TASKBAR_BOTTOM  FB_RGB(0x19,0x41,0xA5)
+#define COL_XP_TASKBAR_HIGHLIGHT FB_RGB(0x3F,0x7E,0xE0)
+#define COL_XP_TASKBAR_BORDER  FB_RGB(0x10,0x42,0xAF)
+#define COL_XP_TRAY_TOP     FB_RGB(0x13,0x9E,0xE9)
+#define COL_XP_TRAY_BOTTOM  FB_RGB(0x09,0x5B,0xC9)
+#define COL_XP_TRAY_HIGHLIGHT FB_RGB(0x18,0xBB,0xFF)
 #define COL_XP_START_GREEN   FB_RGB(0x3C,0x99,0x00)
 
 #define COL_XP_HIGHLIGHT     FB_RGB(0x31,0x6A,0xC5)
@@ -69,8 +73,8 @@ void fb_apply_desktop_bg(void);
 #define COL_XP_BTN_HOVER     FB_RGB(0xCE,0xE1,0xF5)
 #define COL_XP_BTN_SHADOW    FB_RGB(0xA0,0xA0,0xA0)
 
-#define COL_XP_WINDOW_BORDER_ACTIVE  COL_XP_TITLE_BORDER
-#define COL_XP_WINDOW_BORDER_INACT   FB_RGB(0xA0,0xA0,0xA0)
+#define COL_XP_WINDOW_BORDER_ACTIVE  FB_RGB(0x08,0x31,0xD9)
+#define COL_XP_WINDOW_BORDER_INACT   FB_RGB(0x65,0x82,0xF5)
 
 #define COL_XP_MENU_HIGHLIGHT COL_XP_HIGHLIGHT
 #define COL_XP_MENU_BG       COL_WHITE
@@ -79,27 +83,21 @@ void fb_apply_desktop_bg(void);
 #define COL_XP_DESKTOP       FB_RGB(0x3A,0x6E,0xA5)
 
 /* XP Start Menu colors */
-#define COL_XP_SM_HEADER     FB_RGB(0x00,0x5A,0xE0)
-#define COL_XP_SM_HEADER2    FB_RGB(0x00,0x4A,0xC0)
 #define COL_XP_SM_LEFT_BG    FB_RGB(0xFF,0xFF,0xFF)
 #define COL_XP_SM_RIGHT_BG   FB_RGB(0xD6,0xE4,0xF0)
-#define COL_XP_SM_SEPARATOR  FB_RGB(0xC0,0xC0,0xC0)
 #define COL_XP_SM_BOTTOM_BG  FB_RGB(0xE2,0xE6,0xEB)
 #define COL_XP_SM_USER_TEXT  COL_WHITE
-#define COL_XP_SM_LOGOFF_BG  FB_RGB(0xE2,0xE6,0xEB)
-#define COL_XP_SM_LOGOFF_FG  COL_BLACK
-#define COL_XP_SM_SHUTDOWN   FB_RGB(0xCC,0x33,0x33)
 
-/* XP title bar button colors */
-#define COL_XP_BTN_CLOSE       FB_RGB(0xE0, 0x80, 0x80)
-#define COL_XP_BTN_CLOSE_HOV   FB_RGB(0xFF, 0x00, 0x00)
-#define COL_XP_BTN_CLOSE_X     FB_RGB(0xFF, 0xFF, 0xFF)
+/* XP caption button colors */
+#define COL_XP_BTN_MIN_FACE    FB_RGB(0x22,0x63,0xD5)
+#define COL_XP_BTN_MAX_FACE    FB_RGB(0x22,0x63,0xD5)
+#define COL_XP_BTN_CLOSE_FACE  FB_RGB(0xCC,0x46,0x00)
+#define COL_XP_BTN_CLOSE_HOV   FB_RGB(0xFF,0x60,0x20)
 
 /* Alpha blending functions */
 uint32_t fb_blend(uint32_t fg, uint32_t bg, uint8_t alpha);
 void fb_fillrect_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha);
-void fb_draw_glass_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha);
-void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow_color);
+
 
 /* Region save/restore */
 void fb_save_region(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t* buf);

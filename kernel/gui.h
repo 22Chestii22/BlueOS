@@ -33,6 +33,18 @@
 /* XP border width (thin 1px) */
 #define XP_BORDER_W 1
 
+/* XP scrollbar */
+#define XP_SCROLLBAR_W 16
+
+typedef enum {
+    SCROLL_NONE,
+    SCROLL_UP,
+    SCROLL_DOWN,
+    SCROLL_THUMB,
+    SCROLL_TRACK_UP,
+    SCROLL_TRACK_DOWN
+} scroll_part_t;
+
 typedef struct {
     int type;
     int mx, my;
@@ -75,6 +87,8 @@ typedef struct {
     int dirty;
     int dirty_x, dirty_y, dirty_w, dirty_h;
     int pixels_page_allocated;
+    int scroll_offset;
+    int scroll_max;
 } gui_window_t;
 
 void gui_init(void);

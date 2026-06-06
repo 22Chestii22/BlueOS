@@ -97,7 +97,42 @@ void fb_backbuffer_alloc(void)
 
 void fb_apply_desktop_bg(void)
 {
-    fb_fillrect(0, 0, fb_info.width, fb_info.height, COL_XP_DESKTOP);
+    uint32_t w = fb_info.width;
+    uint32_t h = fb_info.height;
+
+    uint32_t sky_top    = FB_RGB(0x3A, 0x6E, 0xA5);
+    uint32_t sky_bot    = FB_RGB(0xB8, 0xD4, 0xF0);
+    uint32_t hill_far   = FB_RGB(0x8B, 0xC4, 0x6A);
+    uint32_t hill_mid   = FB_RGB(0x6A, 0xB0, 0x4A);
+    uint32_t hill_near  = FB_RGB(0x4A, 0x8C, 0x3F);
+
+    uint32_t horizon = h * 2 / 3;
+
+    for (uint32_t y = 0; y < horizon; y++)
+    {
+        uint8_t r = ((sky_top >> 16) & 0xFF) +
+            ((((sky_bot >> 16) & 0xFF) - ((sky_top >> 16) & 0xFF)) * y / horizon);
+        uint8_t g = ((sky_top >> 8) & 0xFF) +
+            ((((sky_bot >> 8) & 0xFF) - ((sky_top >> 8) & 0xFF)) * y / horizon);
+        uint8_t b = (sky_top & 0xFF) +
+            (((sky_bot & 0xFF) - (sky_top & 0xFF)) * y / horizon);
+        fb_draw_hline(y, 0, w - 1, FB_RGB(r, g, b));
+    }
+
+    uint32_t hill_h = h - horizon;
+
+    for (uint32_t y = horizon; y < h; y++)
+    {
+        int dh = y - horizon;
+        uint32_t col;
+        if (dh < hill_h / 4)
+            col = hill_far;
+        else if (dh < hill_h / 2)
+            col = hill_mid;
+        else
+            col = hill_near;
+        fb_draw_hline(y, 0, w - 1, col);
+    }
 }
 
 static void putpixel_raw(uint32_t x, uint32_t y, uint32_t color)
@@ -325,91 +360,6 @@ void fb_fillrect_alpha(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t 
                 putpixel_raw(x + col, yy, fb_blend(color, bg, alpha));
             }
         }
-    }
-}
-
-void fb_draw_glass_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color, uint8_t alpha)
-{
-    if (w < 2 || h < 2) return;
-    fb_fillrect_alpha(x, y, w, h, color, alpha);
-
-    uint32_t highlight = fb_blend(COL_WHITE, color, 80);
-    fb_draw_hline(y + 1, x + 2, x + w - 3, highlight);
-
-    uint32_t shadow = fb_blend(COL_BLACK, color, 40);
-    fb_draw_hline(y + h - 1, x + 1, x + w - 2, shadow);
-}
-
-void fb_draw_glow_text(int x, int y, const char* str, uint32_t fg, uint32_t glow_color)
-{
-    int glow_alpha = 60;
-    int cx = x, cy = y;
-
-    for (int i = 0; str[i]; i++)
-    {
-        if (str[i] == '\n')
-        {
-            cx = x;
-            cy += FONT_HEIGHT;
-            continue;
-        }
-        int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
-        if (ci < 0 || ci >= FONT_NUM_CHARS) continue;
-
-        for (int row = 0; row < FONT_HEIGHT; row++)
-        {
-            unsigned char bits = font_data[ci][row];
-            int py = cy + row;
-            if (py < 0 || (uint32_t)py >= fb_info.height) continue;
-            for (int col = 0; col < FONT_WIDTH; col++)
-            {
-                int px = cx + col;
-                if (px < 0 || (uint32_t)px >= fb_info.width) continue;
-                if (bits & (1 << (7 - col)))
-                {
-                    int gx_start = px - 1;
-                    if (gx_start < 0) gx_start = 0;
-                    int gy_start = py - 1;
-                    if (gy_start < 0) gy_start = 0;
-                    int gw = 3;
-                    if (gx_start + gw > (int)fb_info.width) gw = fb_info.width - gx_start;
-                    int gh = 3;
-                    if (gy_start + gh > (int)fb_info.height) gh = fb_info.height - gy_start;
-                    fb_fillrect_alpha((uint32_t)gx_start, (uint32_t)gy_start,
-                                      (uint32_t)gw, (uint32_t)gh,
-                                      glow_color, glow_alpha);
-                }
-            }
-        }
-        cx += FONT_WIDTH;
-    }
-
-    cx = x; cy = y;
-    for (int i = 0; str[i]; i++)
-    {
-        if (str[i] == '\n')
-        {
-            cx = x;
-            cy += FONT_HEIGHT;
-            continue;
-        }
-        int ci = (unsigned char)str[i] - FONT_FIRST_CHAR;
-        if (ci < 0 || ci >= FONT_NUM_CHARS) continue;
-
-        for (int row = 0; row < FONT_HEIGHT; row++)
-        {
-            unsigned char bits = font_data[ci][row];
-            int py = cy + row;
-            if (py < 0 || (uint32_t)py >= fb_info.height) continue;
-            for (int col = 0; col < FONT_WIDTH; col++)
-            {
-                int px = cx + col;
-                if (px < 0 || (uint32_t)px >= fb_info.width) continue;
-                if (bits & (1 << (7 - col)))
-                    fb_putpixel((uint32_t)px, (uint32_t)py, fg);
-            }
-        }
-        cx += FONT_WIDTH;
     }
 }
 
