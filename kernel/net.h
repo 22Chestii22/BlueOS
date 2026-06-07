@@ -132,8 +132,8 @@ int tcp_connect(const uint8_t* dst_ip, uint16_t dst_port);
 int tcp_send(int conn_id, const void* data, int len);
 int tcp_recv(int conn_id, void* buffer, int max_len);
 void tcp_close(int conn_id);
-int http_get(const char* hostname, const char* path, char* response, int max_len);
-int http_post(const char* hostname, const char* path,
+int http_get(const char* hostname, uint16_t port, const char* path, char* response, int max_len);
+int http_post(const char* hostname, uint16_t port, const char* path,
               const char* content_type, const void* body, int body_len,
               char* response, int max_len);
 

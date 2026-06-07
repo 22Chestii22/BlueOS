@@ -755,7 +755,7 @@ static void write_int(char** dst, int* remaining, int val)
     write_str(dst, remaining, buf);
 }
 
-int http_get(const char* hostname, const char* path, char* response, int max_len)
+int http_get(const char* hostname, uint16_t port, const char* path, char* response, int max_len)
 {
     screen_write("HTTP: resolving ");
     screen_write(hostname);
@@ -772,9 +772,11 @@ int http_get(const char* hostname, const char* path, char* response, int max_len
     ip_to_str(ip, ip_str);
     screen_write("HTTP: connecting to ");
     screen_write(ip_str);
-    screen_write(":80\n");
+    screen_write(":");
+    screen_write_dec(port);
+    screen_write("\n");
 
-    int conn = tcp_connect(ip, 80);
+    int conn = tcp_connect(ip, port);
     if (conn < 0)
     {
         screen_write("HTTP: connect failed\n");
@@ -803,6 +805,11 @@ int http_get(const char* hostname, const char* path, char* response, int max_len
     {
         int n = tcp_recv(conn, response + total, max_len - 1 - total);
         if (n > 0) total += n;
+        if (n == 0)
+        {
+            if (total > 0) break;
+            yield_to_scheduler();
+        }
     }
     response[total] = 0;
 
@@ -820,7 +827,7 @@ int http_get(const char* hostname, const char* path, char* response, int max_len
     return -1;
 }
 
-int http_post(const char* hostname, const char* path,
+int http_post(const char* hostname, uint16_t port, const char* path,
               const char* content_type, const void* body, int body_len,
               char* response, int max_len)
 {
@@ -839,9 +846,11 @@ int http_post(const char* hostname, const char* path,
     ip_to_str(ip, ip_str);
     screen_write("HTTP POST: connecting to ");
     screen_write(ip_str);
-    screen_write(":80\n");
+    screen_write(":");
+    screen_write_dec(port);
+    screen_write("\n");
 
-    int conn = tcp_connect(ip, 80);
+    int conn = tcp_connect(ip, port);
     if (conn < 0)
     {
         screen_write("HTTP POST: connect failed\n");
@@ -890,6 +899,7 @@ int http_post(const char* hostname, const char* path,
         if (n > 0) total += n;
         if (n == 0)
         {
+            if (total > 0) break;
             yield_to_scheduler();
         }
     }

@@ -190,16 +190,7 @@ def generate_blu(query):
         bin_path = os.path.join(asm_dir, f"{prog_name}.bin")
         blu_path = os.path.join(asm_dir, f"{prog_name}.blu")
 
-        lines = raw.split("\n")
-        fixed_lines = []
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith(".") and ":" in stripped:
-                label = stripped.split(":")[0]
-                fixed_lines.append(line.replace(label, label.replace(".", "L_")))
-            else:
-                fixed_lines.append(line)
-        raw = "\n".join(fixed_lines)
+        raw = re.sub(r"(?<!\w)\.(\w+)", r"L_\1", raw)
 
         with open(asm_path, "w") as f:
             f.write(raw)

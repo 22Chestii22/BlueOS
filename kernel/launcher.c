@@ -196,7 +196,7 @@ static int launcher_generate_app(const char* query)
 
     char response[4096];
 
-    int ret = http_post(GROQ_RELAY_HOST, "/generate",
+    int ret = http_post(GROQ_RELAY_HOST, GROQ_RELAY_PORT, "/generate",
                         "application/json", json_body, jlen,
                         response, sizeof(response) - 1);
     if (ret > 0)
