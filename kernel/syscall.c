@@ -203,6 +203,12 @@ uint64_t handle_syscall(uint64_t n, uint64_t a1, uint64_t a2, uint64_t a3,
             return -1;
         }
 
+        case 36:
+            return vfs_seek((int)a1, (uint32_t)a2);
+
+        case 37:
+            return vfs_get_size((int)a1);
+
         default:
             printf("[SYSCALL] Unknown syscall %d\n", (int)n);
             return -1;

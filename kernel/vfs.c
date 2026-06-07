@@ -11,7 +11,7 @@ typedef struct filesystem
 {
     char name[16];
     int (*mount)(struct filesystem* fs, int device);
-    int (*read)(struct filesystem* fs, const char* path, void* buffer, uint32_t size);
+    int (*read)(struct filesystem* fs, const char* path, uint32_t position, void* buffer, uint32_t size);
     int (*write)(struct filesystem* fs, const char* path, const void* buffer, uint32_t size);
     int (*open)(struct filesystem* fs, const char* path, int flags);
     int (*close)(struct filesystem* fs, int fd);
@@ -19,6 +19,7 @@ typedef struct filesystem
     int (*mkdir)(struct filesystem* fs, const char* path);
     int (*unlink)(struct filesystem* fs, const char* path);
     int (*rename)(struct filesystem* fs, const char* old_path, const char* new_path);
+    int (*get_size)(struct filesystem* fs, const char* path);
     void* private_data;
     int device;
 } filesystem_t;
@@ -40,14 +41,15 @@ static file_descriptor_t open_files[MAX_OPEN_FILES];
 
 int vfs_mount(const char* name, int device,
               int (*mount)(void*, int),
-              int (*read)(void*, const char*, void*, uint32_t),
+              int (*read)(void*, const char*, uint32_t, void*, uint32_t),
               int (*write)(void*, const char*, const void*, uint32_t),
               int (*open)(void*, const char*, int),
               int (*close)(void*, int),
               int (*readdir)(void*, const char*, char*, int),
               int (*mkdir)(void*, const char*),
               int (*unlink)(void*, const char*),
-              int (*rename)(void*, const char*, const char*))
+              int (*rename)(void*, const char*, const char*),
+              int (*get_size)(void*, const char*))
 {
     if (num_filesystems >= MAX_FILESYSTEMS) return -1;
 
@@ -63,6 +65,7 @@ int vfs_mount(const char* name, int device,
     fs->mkdir = (void*)mkdir;
     fs->unlink = (void*)unlink;
     fs->rename = (void*)rename;
+    fs->get_size = (void*)get_size;
     fs->private_data = NULL;
 
     int result = fs->mount(fs, device);
@@ -123,7 +126,25 @@ int vfs_read(int fd, void* buffer, uint32_t size)
         return -1;
 
     int fs_id = open_files[fd].fs_id;
-    return filesystems[fs_id].read(&filesystems[fs_id], open_files[fd].path, buffer, size);
+    int ret = filesystems[fs_id].read(&filesystems[fs_id], open_files[fd].path, open_files[fd].position, buffer, size);
+    if (ret > 0) open_files[fd].position += ret;
+    return ret;
+}
+
+int vfs_seek(int fd, uint32_t position)
+{
+    if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].used)
+        return -1;
+    open_files[fd].position = position;
+    return 0;
+}
+
+int vfs_get_size(int fd)
+{
+    if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].used)
+        return -1;
+    int fs_id = open_files[fd].fs_id;
+    return filesystems[fs_id].get_size(&filesystems[fs_id], open_files[fd].path);
 }
 
 int vfs_write(int fd, const void* buffer, uint32_t size)

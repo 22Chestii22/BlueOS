@@ -517,7 +517,7 @@ static int fat_mount_impl(void* fs, int device)
     return 0;
 }
 
-static int fat_read_impl(void* fs, const char* path, void* buffer, uint32_t size)
+static int fat_read_impl(void* fs, const char* path, uint32_t position, void* buffer, uint32_t size)
 {
     (void)fs;
     fat32_dir_entry_t entry;
@@ -533,6 +533,25 @@ static int fat_read_impl(void* fs, const char* path, void* buffer, uint32_t size
     uint8_t* cluster_data = (uint8_t*)api->malloc(cluster_size);
     if (!cluster_data) return -1;
 
+    uint32_t skip = position;
+    while (skip > 0 && cluster < 0x0FFFFFF8)
+    {
+        if (skip >= cluster_size)
+        {
+            skip -= cluster_size;
+            cluster = fat_get_next_cluster(cluster);
+        }
+        else
+        {
+            if (fat_read_cluster(cluster, cluster_data) != 0)
+            {
+                api->free(cluster_data);
+                return -1;
+            }
+            break;
+        }
+    }
+
     while (bytes_read < to_read && cluster < 0x0FFFFFF8)
     {
         if (fat_read_cluster(cluster, cluster_data) != 0)
@@ -543,15 +562,25 @@ static int fat_read_impl(void* fs, const char* path, void* buffer, uint32_t size
 
         uint32_t chunk = (to_read - bytes_read) < cluster_size ?
                           (to_read - bytes_read) : cluster_size;
+        uint32_t offset = (skip > 0) ? skip : 0;
 
-        api->memcpy(buf + bytes_read, cluster_data, chunk);
-        bytes_read += chunk;
+        api->memcpy(buf + bytes_read, cluster_data + offset, chunk - offset);
+        bytes_read += chunk - offset;
+        skip = 0;
 
         cluster = fat_get_next_cluster(cluster);
     }
 
     api->free(cluster_data);
     return bytes_read;
+}
+
+static int fat_get_size_impl(void* fs, const char* path)
+{
+    (void)fs;
+    fat32_dir_entry_t entry;
+    if (fat_find_entry(path, &entry) != 0) return -1;
+    return (int)entry.file_size;
 }
 
 static int fat_write_impl(void* fs, const char* path, const void* buffer, uint32_t size)
@@ -908,14 +937,15 @@ static int fat_register(void)
     return vfs_mount(
         "FAT32", 0,
         fat_mount_impl,
-        fat_read_impl,
+        (void*)fat_read_impl,
         fat_write_impl,
         fat_open_impl,
         fat_close_impl,
         fat_readdir_impl,
         fat_mkdir_impl,
         fat_unlink_impl,
-        fat_rename_impl
+        fat_rename_impl,
+        fat_get_size_impl
     );
 }
 
